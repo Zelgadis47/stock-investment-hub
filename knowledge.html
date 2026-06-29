@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>知识库 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .knowledge-layout {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+    }
+    .kb-sidebar {
+      width: var(--sidebar-w);
+      flex-shrink: 0;
+      position: sticky;
+      top: calc(var(--header-h) + 24px);
+    }
+    .kb-sidebar .cat-list { list-style: none; }
+    .kb-sidebar .cat-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      transition: all 0.15s;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      border-left: 3px solid transparent;
+      margin-bottom: 2px;
+    }
+    .kb-sidebar .cat-item:hover { background: var(--accent-light); color: var(--accent); }
+    .kb-sidebar .cat-item.active {
+      background: var(--accent-light);
+      color: var(--accent);
+      font-weight: 600;
+      border-left-color: var(--accent);
+    }
+    .kb-sidebar .cat-count {
+      float: right;
+      background: var(--border);
+      padding: 0 8px;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      color: var(--text-light);
+    }
+    .kb-main { flex: 1; min-width: 0; }
+
+    .article-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-light);
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .article-item:hover { background: var(--accent-light); }
+    .article-item.selected { background: #e8eef6; }
+    .article-item .info { flex: 1; min-width: 0; }
+    .article-item .title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .article-item .meta { font-size: 0.8rem; color: var(--text-light); margin-top: 3px; display: flex; gap: 8px; align-items: center; }
+    .article-item .tag {
+      display: inline-block;
+      background: var(--accent-light);
+      color: var(--accent);
+      padding: 0 8px;
+      border-radius: 10px;
+      font-size: 0.75rem;
+    }
+    .article-item .actions-btns { display: flex; gap: 6px; flex-shrink: 0; margin-left: 10px; }
+    .article-item .actions-btns button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-light);
+      padding: 4px 6px;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .article-item .actions-btns .btn-edit:hover { color: var(--accent); background: var(--accent-light); }
+    .article-item .actions-btns .btn-del:hover { color: var(--danger); background: #ffebee; }
+
+    /* Detail view */
+    .detail-card {
+      margin-top: 16px;
+    }
+    .detail-card .detail-header {
+      padding: 18px 24px 0;
+    }
+    .detail-card .detail-header h3 { font-size: 1.15rem; }
+    .detail-card .detail-meta {
+      font-size: 0.82rem;
+      color: var(--text-light);
+      margin-top: 6px;
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .detail-card .detail-body {
+      padding: 18px 24px 24px;
+      line-height: 1.85;
+    }
+    .detail-card .detail-body h3 { margin: 16px 0 8px; font-size: 1.1rem; color: var(--primary); }
+    .detail-card .detail-body h4 { margin: 12px 0 6px; font-size: 1rem; color: var(--text); }
+    .detail-card .detail-body p { margin-bottom: 10px; }
+    .detail-card .detail-body ul, .detail-card .detail-body ol { padding-left: 24px; margin-bottom: 10px; }
+    .detail-card .detail-body li { margin-bottom: 4px; }
+    .detail-card .detail-body b, .detail-card .detail-body strong { color: var(--primary); }
+
+    @media (max-width: 768px) {
+      .knowledge-layout { flex-direction: column; }
+      .kb-sidebar { width: 100%; position: static; }
+      .kb-sidebar .cat-list { display: flex; gap: 4px; flex-wrap: wrap; }
+      .kb-sidebar .cat-item { flex: 1; min-width: 80px; text-align: center; border-left: none; border-bottom: 2px solid transparent; padding: 8px 10px; font-size: 0.82rem; }
+      .kb-sidebar .cat-item.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+      .kb-sidebar .cat-count { float: none; display: inline-block; margin-left: 4px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📊</div>
+      <span>我的投资智库</span>
+    </div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html" class="active">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="trade.html">交易复盘</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>📚 知识库</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 新增文章</button>
+      </div>
+    </div>
+
+    <div class="knowledge-layout">
+      <!-- Sidebar -->
+      <aside class="card kb-sidebar" style="padding:12px 0;">
+        <div class="cat-list" id="catList"></div>
+      </aside>
+
+      <!-- Main -->
+      <div class="kb-main">
+        <!-- Article List -->
+        <div class="card" id="articleListCard" style="padding:0;"></div>
+        <!-- Detail -->
+        <div class="card detail-card" id="detailCard">
+          <div class="empty-state" style="padding:32px;">
+            <div class="icon">📖</div>
+            <p>点击左侧文章查看详情</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== Add / Edit Article Modal ===== -->
+  <div class="modal-overlay" id="articleModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="articleModalTitle">新增文章</h3>
+        <button class="modal-close" onclick="closeModal('articleModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>文章标题</label>
+          <input type="text" id="articleTitle" placeholder="请输入文章标题">
+        </div>
+        <div class="form-group">
+          <label>分类</label>
+          <select id="articleCategory">
+            <option value="基本面分析">基本面分析</option>
+            <option value="技术分析">技术分析</option>
+            <option value="行业研究">行业研究</option>
+            <option value="交易心理">交易心理</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>正文（支持富文本）</label>
+          <div class="editor-toolbar">
+            <button onclick="execCmd('bold')" title="加粗"><b>B</b></button>
+            <button onclick="execCmd('italic')" title="斜体"><i>I</i></button>
+            <button onclick="execCmd('underline')" title="下划线"><u>U</u></button>
+            <button onclick="execCmd('insertUnorderedList')" title="无序列表">☰</button>
+            <button onclick="execCmd('insertOrderedList')" title="有序列表">#.</button>
+            <button onclick="execCmd('formatBlock','h3')" title="标题">H</button>
+            <button onclick="execCmd('formatBlock','h4')" title="小标题">h</button>
+            <button onclick="execCmd('removeFormat')" title="清除格式">清除</button>
+          </div>
+          <div class="editor-content" id="articleContent" contenteditable="true"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('articleModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveArticle()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ===== 数据管理模态框 ===== -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💾 数据管理</h3>
+        <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="data-info">
+          <b>🌐 自动同步</b>：页面右下角有同步状态指示器，点击可配置同步服务器地址。<br>
+          <b>📁 手动传输</b>：如不使用同步服务器，可通过下方导出/导入迁移数据。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();">
+            <span class="btn-icon">⬇️</span><br>导出数据
+          </button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();">
+            <span class="btn-icon">⬆️</span><br>导入数据
+          </button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    const CATEGORIES = ['全部', '基本面分析', '技术分析', '行业研究', '交易心理', '其他'];
+    let currentCategory = '全部';
+    let currentArticleId = null;
+    let editingArticleId = null;
+
+    // ---- 富文本命令 ----
+    function execCmd(cmd, val) {
+      document.getElementById('articleContent').focus();
+      document.execCommand(cmd, false, val || null);
+    }
+
+    // ---- 渲染分类 ----
+    function renderCategories() {
+      const articles = DB.getArticles();
+      const counts = {};
+      articles.forEach(a => { counts[a.category] = (counts[a.category] || 0) + 1; });
+
+      const list = document.getElementById('catList');
+      list.innerHTML = CATEGORIES.map(cat => {
+        const cnt = cat === '全部' ? articles.length : (counts[cat] || 0);
+        return `<div class="cat-item ${currentCategory === cat ? 'active' : ''}" onclick="selectCategory('${cat}')">
+          ${cat} <span class="cat-count">${cnt}</span>
+        </div>`;
+      }).join('');
+    }
+
+    function selectCategory(cat) {
+      currentCategory = cat;
+      currentArticleId = null;
+      renderCategories();
+      renderArticleList();
+      showDetail(null);
+    }
+
+    // ---- 渲染文章列表 ----
+    function renderArticleList() {
+      let articles = DB.getArticles();
+      if (currentCategory !== '全部') {
+        articles = articles.filter(a => a.category === currentCategory);
+      }
+
+      const container = document.getElementById('articleListCard');
+      if (articles.length === 0) {
+        container.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无文章</p></div>';
+        return;
+      }
+
+      container.innerHTML = '<div style="padding:0;">' + articles.map(a => {
+        const sel = currentArticleId === a.id ? ' selected' : '';
+        return `<div class="article-item${sel}" onclick="selectArticle('${a.id}')">
+          <div class="info">
+            <div class="title">${a.title}</div>
+            <div class="meta">
+              <span class="tag">${a.category}</span>
+              <span>${fmtDateTime(a.updatedAt)}</span>
+            </div>
+          </div>
+          <div class="actions-btns">
+            <button class="btn-edit" onclick="event.stopPropagation();editArticle('${a.id}')" title="编辑">✏️</button>
+            <button class="btn-del" onclick="event.stopPropagation();deleteArticle('${a.id}')" title="删除">🗑️</button>
+          </div>
+        </div>`;
+      }).join('') + '</div>';
+    }
+
+    function selectArticle(id) {
+      currentArticleId = id;
+      renderArticleList();
+      const articles = DB.getArticles();
+      const a = articles.find(item => item.id === id);
+      showDetail(a);
+    }
+
+    function showDetail(article) {
+      const el = document.getElementById('detailCard');
+      if (!article) {
+        el.innerHTML = '<div class="empty-state" style="padding:32px;"><div class="icon">📖</div><p>点击左侧文章查看详情</p></div>';
+        return;
+      }
+      el.innerHTML = `
+        <div class="detail-header">
+          <h3>${article.title}</h3>
+          <div class="detail-meta">
+            <span>🏷️ ${article.category}</span>
+            <span>📅 创建: ${fmtDateTime(article.createdAt)}</span>
+            <span>🔄 更新: ${fmtDateTime(article.updatedAt)}</span>
+          </div>
+        </div>
+        <div class="detail-body">${article.content}</div>
+      `;
+    }
+
+    // ---- 新增 / 编辑 ----
+    function openAddModal() {
+      editingArticleId = null;
+      document.getElementById('articleModalTitle').textContent = '新增文章';
+      document.getElementById('articleTitle').value = '';
+      document.getElementById('articleCategory').value = '基本面分析';
+      document.getElementById('articleContent').innerHTML = '';
+      openModal('articleModal');
+      setTimeout(() => document.getElementById('articleTitle').focus(), 100);
+    }
+
+    function editArticle(id) {
+      const articles = DB.getArticles();
+      const a = articles.find(item => item.id === id);
+      if (!a) return;
+      editingArticleId = id;
+      document.getElementById('articleModalTitle').textContent = '编辑文章';
+      document.getElementById('articleTitle').value = a.title;
+      document.getElementById('articleCategory').value = a.category;
+      document.getElementById('articleContent').innerHTML = a.content;
+      openModal('articleModal');
+    }
+
+    function saveArticle() {
+      const title = document.getElementById('articleTitle').value.trim();
+      const category = document.getElementById('articleCategory').value;
+      const content = document.getElementById('articleContent').innerHTML;
+
+      if (!title) { showToast('请输入文章标题'); return; }
+      if (!content.trim() || content === '<br>') { showToast('请输入文章正文'); return; }
+
+      if (editingArticleId) {
+        DB.updateArticle(editingArticleId, { title, category, content });
+        showToast('文章已更新');
+      } else {
+        DB.addArticle({ title, category, content });
+        showToast('文章已添加');
+      }
+      closeModal('articleModal');
+      renderCategories();
+      renderArticleList();
+      if (currentArticleId) {
+        const articles = DB.getArticles();
+        const updated = articles.find(a => a.id === currentArticleId);
+        showDetail(updated);
+      }
+    }
+
+    function deleteArticle(id) {
+      if (!confirm('确定要删除这篇文章吗？')) return;
+      DB.deleteArticle(id);
+      if (currentArticleId === id) { currentArticleId = null; showDetail(null); }
+      renderCategories();
+      renderArticleList();
+      showToast('文章已删除');
+    }
+
+    // ---- 初始化 ----
+    DB.initSampleData();
+    renderCategories();
+    renderArticleList();
+  </script>
+</body>
+</html>
