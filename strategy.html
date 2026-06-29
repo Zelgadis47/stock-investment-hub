@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>策略池 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .strategy-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 16px;
+    }
+    .strategy-card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      padding: 20px;
+      transition: box-shadow 0.2s, transform 0.2s;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+    .strategy-card:hover {
+      box-shadow: var(--shadow-hover);
+      transform: translateY(-2px);
+    }
+    .strategy-card .s-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .strategy-card .s-name {
+      font-size: 1.05rem;
+      font-weight: 600;
+      color: var(--primary);
+      flex: 1;
+    }
+    .strategy-card .s-status {
+      font-size: 0.75rem;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 500;
+      white-space: nowrap;
+      margin-left: 8px;
+    }
+    .s-status.tracking { background: #e3f2fd; color: #1565c0; }
+    .s-status.executed { background: #e8f5e9; color: #2e7d32; }
+    .s-status.abandoned { background: #fce4ec; color: #c62828; }
+
+    .strategy-card .s-logic {
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-bottom: 12px;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 4;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .strategy-card .s-condition {
+      font-size: 0.82rem;
+      color: var(--text-light);
+      background: var(--bg);
+      padding: 8px 12px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 10px;
+    }
+    .strategy-card .s-condition::before { content: '适用条件：'; font-weight: 500; color: var(--text-secondary); }
+    .strategy-card .s-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--text-light);
+      border-top: 1px solid var(--border-light);
+      padding-top: 10px;
+      margin-top: auto;
+    }
+    .strategy-card .s-actions { display: flex; gap: 6px; }
+    .strategy-card .s-actions button {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.85rem;
+      color: var(--text-light);
+      padding: 3px 6px;
+      border-radius: 3px;
+      transition: all 0.15s;
+    }
+    .strategy-card .s-actions .edit:hover { color: var(--accent); background: var(--accent-light); }
+    .strategy-card .s-actions .del:hover { color: var(--danger); background: #ffebee; }
+
+    @media (max-width: 480px) {
+      .strategy-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📊</div>
+      <span>我的投资智库</span>
+    </div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html" class="active">策略池</a>
+      <a href="trade.html">交易复盘</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>📋 策略池</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 新增策略</button>
+      </div>
+    </div>
+
+    <!-- Filter & Search -->
+    <div class="filter-bar">
+      <select id="statusFilter" onchange="renderStrategies()">
+        <option value="全部">全部状态</option>
+        <option value="跟踪中">跟踪中</option>
+        <option value="已执行">已执行</option>
+        <option value="已废弃">已废弃</option>
+      </select>
+      <input type="text" id="searchInput" placeholder="搜索策略名称或逻辑关键词…" oninput="renderStrategies()">
+    </div>
+
+    <!-- Grid -->
+    <div class="strategy-grid" id="strategyGrid"></div>
+  </main>
+
+  <!-- ===== Add / Edit Strategy Modal ===== -->
+  <div class="modal-overlay" id="strategyModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="strategyModalTitle">新增策略</h3>
+        <button class="modal-close" onclick="closeModal('strategyModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>策略名称</label>
+          <input type="text" id="strategyName" placeholder="例如：低估值龙头定投策略">
+        </div>
+        <div class="form-group">
+          <label>核心逻辑（一句话概括）</label>
+          <textarea id="strategyLogic" rows="3" placeholder="描述策略的核心思路和操作规则"></textarea>
+        </div>
+        <div class="form-group">
+          <label>适用条件</label>
+          <textarea id="strategyCondition" rows="2" placeholder="该策略在什么市场环境下有效？"></textarea>
+        </div>
+        <div class="form-group">
+          <label>当前状态</label>
+          <select id="strategyStatus">
+            <option value="跟踪中">跟踪中</option>
+            <option value="已执行">已执行</option>
+            <option value="已废弃">已废弃</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('strategyModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveStrategy()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ===== 数据管理模态框 ===== -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💾 数据管理</h3>
+        <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="data-info">
+          <b>🌐 自动同步</b>：页面右下角有同步状态指示器，点击可配置同步服务器地址。<br>
+          <b>📁 手动传输</b>：如不使用同步服务器，可通过下方导出/导入迁移数据。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();">
+            <span class="btn-icon">⬇️</span><br>导出数据
+          </button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();">
+            <span class="btn-icon">⬆️</span><br>导入数据
+          </button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    let editingStrategyId = null;
+
+    function renderStrategies() {
+      const statusFilter = document.getElementById('statusFilter').value;
+      const keyword = document.getElementById('searchInput').value.trim().toLowerCase();
+
+      let list = DB.getStrategies();
+      if (statusFilter !== '全部') list = list.filter(s => s.status === statusFilter);
+      if (keyword) list = list.filter(s =>
+        s.name.toLowerCase().includes(keyword) ||
+        (s.logic && s.logic.toLowerCase().includes(keyword))
+      );
+
+      const grid = document.getElementById('strategyGrid');
+      if (list.length === 0) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📋</div><p>暂无策略</p></div>';
+        return;
+      }
+
+      const statusMap = { '跟踪中': 'tracking', '已执行': 'executed', '已废弃': 'abandoned' };
+      grid.innerHTML = list.map(s => `
+        <div class="strategy-card">
+          <div class="s-header">
+            <div class="s-name">${s.name}</div>
+            <span class="s-status ${statusMap[s.status] || 'tracking'}">${s.status}</span>
+          </div>
+          <div class="s-logic">${s.logic || '暂无描述'}</div>
+          ${s.condition ? `<div class="s-condition">${s.condition}</div>` : ''}
+          <div class="s-footer">
+            <span>创建于 ${fmtDate(s.createdAt)}</span>
+            <div class="s-actions">
+              <button class="edit" onclick="editStrategy('${s.id}')">✏️</button>
+              <button class="del" onclick="deleteStrategy('${s.id}')">🗑️</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function openAddModal() {
+      editingStrategyId = null;
+      document.getElementById('strategyModalTitle').textContent = '新增策略';
+      document.getElementById('strategyName').value = '';
+      document.getElementById('strategyLogic').value = '';
+      document.getElementById('strategyCondition').value = '';
+      document.getElementById('strategyStatus').value = '跟踪中';
+      openModal('strategyModal');
+      setTimeout(() => document.getElementById('strategyName').focus(), 100);
+    }
+
+    function editStrategy(id) {
+      const list = DB.getStrategies();
+      const s = list.find(item => item.id === id);
+      if (!s) return;
+      editingStrategyId = id;
+      document.getElementById('strategyModalTitle').textContent = '编辑策略';
+      document.getElementById('strategyName').value = s.name;
+      document.getElementById('strategyLogic').value = s.logic || '';
+      document.getElementById('strategyCondition').value = s.condition || '';
+      document.getElementById('strategyStatus').value = s.status;
+      openModal('strategyModal');
+    }
+
+    function saveStrategy() {
+      const name = document.getElementById('strategyName').value.trim();
+      const logic = document.getElementById('strategyLogic').value.trim();
+      const condition = document.getElementById('strategyCondition').value.trim();
+      const status = document.getElementById('strategyStatus').value;
+
+      if (!name) { showToast('请输入策略名称'); return; }
+      if (!logic) { showToast('请输入策略核心逻辑'); return; }
+
+      if (editingStrategyId) {
+        DB.updateStrategy(editingStrategyId, { name, logic, condition, status });
+        showToast('策略已更新');
+      } else {
+        DB.addStrategy({ name, logic, condition, status });
+        showToast('策略已添加');
+      }
+      closeModal('strategyModal');
+      renderStrategies();
+    }
+
+    function deleteStrategy(id) {
+      if (!confirm('确定要删除这个策略吗？')) return;
+      DB.deleteStrategy(id);
+      renderStrategies();
+      showToast('策略已删除');
+    }
+
+    // ---- 初始化 ----
+    DB.initSampleData();
+    renderStrategies();
+  </script>
+</body>
+</html>
