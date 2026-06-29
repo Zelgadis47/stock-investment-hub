@@ -133,6 +133,16 @@
     @media (max-width: 480px) {
       .insight-grid { grid-template-columns: 1fr; }
     }
+
+    /* Import */
+    #dropZone:hover { border-color: var(--accent); background: #f5f9ff; }
+    #importPreview th {
+      background: var(--primary); color: #fff; padding: 8px 10px;
+      text-align: left; font-weight: 500; font-size: 0.8rem; position: sticky; top: 0; z-index:1;
+    }
+    #importPreview td { padding: 7px 10px; border-bottom: 1px solid var(--border-light); }
+    #importPreview tr:hover td { background: #f8fafc; }
+    .import-warn { font-size: 0.82rem; color: var(--warning); }
   </style>
 </head>
 <body>
@@ -156,6 +166,7 @@
       <h2>📈 交易复盘</h2>
       <div class="actions">
         <button class="btn btn-primary" onclick="openAddModal()">＋ 新增交易记录</button>
+        <button class="btn btn-outline" onclick="triggerImport()">📥 导入交易记录</button>
       </div>
     </div>
 
@@ -267,6 +278,52 @@
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal('tradeModal')">取消</button>
         <button class="btn btn-primary" onclick="saveTrade()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 导入交易记录模态框 ===== -->
+  <div class="modal-overlay" id="importModal">
+    <div class="modal" style="max-width:750px;">
+      <div class="modal-header">
+        <h3>📥 导入交易记录</h3>
+        <button class="modal-close" onclick="closeModal('importModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:14px;">
+          支持 <b>东方财富、同花顺、通达信</b> 等交易软件的成交记录 CSV 导出文件，也可导入自制的 CSV 表格。
+        </p>
+        <div id="importStep1">
+          <label style="display:block;padding:40px 20px;border:2px dashed var(--border);border-radius:var(--radius);text-align:center;cursor:pointer;transition:border-color 0.2s;margin-bottom:16px;" id="dropZone">
+            <div style="font-size:2rem;margin-bottom:6px;">📂</div>
+            <div style="color:var(--text-secondary);">点击选择 CSV 文件 或拖拽到此处</div>
+            <div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;">支持 .csv 格式（UTF-8 或 GBK 编码）</div>
+            <input type="file" id="csvFileInput" accept=".csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+          </label>
+          <details style="font-size:0.82rem;color:var(--text-light);margin-bottom:12px;">
+            <summary style="cursor:pointer;color:var(--accent);">💡 导出教程（各交易软件操作指引）</summary>
+            <ul style="padding-left:16px;margin-top:6px;line-height:1.8;">
+              <li><b>东方财富</b>：交易页面 → 查询交割单 → 选择日期范围 → 导出</li>
+              <li><b>同花顺</b>：交易记录 → 成交查询 → 导出（可能需要下载插件）</li>
+              <li><b>通达信</b>：查询 → 历史成交 → 右键导出</li>
+              <li><b>自制CSV</b>：列名参考（成交日期,股票代码,股票名称,成交价格,成交数量,买卖方向）</li>
+            </ul>
+          </details>
+        </div>
+        <div id="importStep2" style="display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <span style="font-size:0.9rem;font-weight:500;">预览解析结果（<span id="importCount">0</span> 条待导入）</span>
+            <button class="btn btn-sm btn-outline" onclick="resetImport()">重新选择</button>
+          </div>
+          <div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <table style="width:100%;font-size:0.82rem;border-collapse:collapse;" id="importPreview"></table>
+          </div>
+          <div style="margin-top:10px;" id="importWarnings"></div>
+        </div>
+      </div>
+      <div class="modal-footer" id="importFooter" style="display:none;">
+        <button class="btn btn-outline" onclick="closeModal('importModal')">取消</button>
+        <button class="btn btn-primary" onclick="confirmImport()">确认导入</button>
       </div>
     </div>
   </div>
@@ -718,6 +775,238 @@
       DB.deleteTrade(id);
       renderTrades();
       showToast('交易记录已删除');
+    }
+
+    // ===== CSV 导入功能 =====
+
+    let parsedTrades = [];
+
+    function triggerImport() {
+      parsedTrades = [];
+      document.getElementById('importStep1').style.display = 'block';
+      document.getElementById('importStep2').style.display = 'none';
+      document.getElementById('importFooter').style.display = 'none';
+      document.getElementById('csvFileInput').value = '';
+      openModal('importModal');
+    }
+
+    function resetImport() {
+      parsedTrades = [];
+      document.getElementById('importStep1').style.display = 'block';
+      document.getElementById('importStep2').style.display = 'none';
+      document.getElementById('importFooter').style.display = 'none';
+      document.getElementById('csvFileInput').value = '';
+    }
+
+    // 拖拽支持
+    document.addEventListener('DOMContentLoaded', function() {
+      const dropZone = document.getElementById('dropZone');
+      if (!dropZone) return;
+      dropZone.addEventListener('click', function() {
+        document.getElementById('csvFileInput').click();
+      });
+      ['dragenter','dragover','dragleave','drop'].forEach(evt => {
+        dropZone.addEventListener(evt, function(e) { e.preventDefault(); e.stopPropagation(); });
+      });
+      dropZone.addEventListener('dragover', function() { dropZone.style.borderColor = 'var(--accent)'; dropZone.style.background = '#f5f9ff'; });
+      dropZone.addEventListener('dragleave', function() { dropZone.style.borderColor = 'var(--border)'; dropZone.style.background = ''; });
+      dropZone.addEventListener('drop', function(e) {
+        dropZone.style.borderColor = 'var(--border)';
+        dropZone.style.background = '';
+        if (e.dataTransfer.files.length) handleCsvFile(e.dataTransfer.files[0]);
+      });
+    });
+
+    function handleCsvFile(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        let text = e.target.result;
+        // 尝试检测并转换 GBK → UTF-8
+        if (/[\x81-\xFE]/.test(text.substring(0, 200))) {
+          text = gbkToUtf8(text);
+        }
+        parseCsvContent(text, file.name);
+      };
+      // 先尝试 UTF-8
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    // 简单的 GBK → UTF-8 检测和转换
+    function gbkToUtf8(raw) {
+      // 检查是否包含 GBK 特征字符
+      let hasGbk = false;
+      for (let i = 0; i < Math.min(raw.length, 100); i++) {
+        if (raw.charCodeAt(i) > 127 && raw.charCodeAt(i) < 256) { hasGbk = true; break; }
+      }
+      if (!hasGbk) return raw;
+
+      // 使用 TextDecoder 尝试 GBK 解码
+      try {
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        return new TextDecoder('gbk').decode(bytes);
+      } catch (e) {
+        return raw;
+      }
+    }
+
+    function parseCsvContent(text, filename) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { showToast('❌ CSV 文件格式不正确或为空'); return; }
+
+      // 解析表头
+      const headers = parseCsvLine(lines[0].replace(/^\uFEFF/, '')); // 去除 BOM
+      const colMap = detectColumns(headers);
+
+      if (!colMap) {
+        showToast('❌ 无法识别 CSV 列名，请确保包含：成交日期、股票名称、成交价格、成交数量');
+        return;
+      }
+
+      // 解析数据行
+      parsedTrades = [];
+      const warnings = [];
+      for (let i = 1; i < Math.min(lines.length, 501); i++) {
+        const cols = parseCsvLine(lines[i]);
+        if (cols.length < 5) continue;
+
+        const buyOrSell = colMap.direction >= 0 ? (cols[colMap.direction] || '').trim() : '';
+        // 东方财富：买入/卖出；同花顺：买/卖
+        const isBuy = buyOrSell.includes('买') || buyOrSell === '买入';
+        const isSell = buyOrSell.includes('卖');
+
+        const trade = {
+          stockName: cols[colMap.name]?.trim() || '',
+          stockCode: colMap.code >= 0 ? (cols[colMap.code]?.trim() || '') : '',
+          buyDate: isBuy || !isSell ? (cols[colMap.date]?.trim() || '') : '',
+          buyPrice: isBuy || !isSell ? parseFloat(cols[colMap.price]) || 0 : '',
+          sellDate: isSell ? (cols[colMap.date]?.trim() || '') : '',
+          sellPrice: isSell ? parseFloat(cols[colMap.price]) || 0 : '',
+          shares: parseInt(cols[colMap.shares]) || 0,
+          notes: '',
+        };
+
+        if (!trade.stockName || !trade.shares) {
+          warnings.push(`第 ${i + 1} 行数据不完整，已跳过`);
+          continue;
+        }
+
+        parsedTrades.push(trade);
+      }
+
+      if (parsedTrades.length === 0) {
+        showToast('❌ 没有解析到有效数据，请检查 CSV 格式');
+        return;
+      }
+
+      // 显示预览
+      renderImportPreview(warnings);
+    }
+
+    function parseCsvLine(line) {
+      const result = [];
+      let field = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i+1] === '"') { field += '"'; i++; }
+          else inQuotes = !inQuotes;
+        } else if (ch === ',' && !inQuotes) {
+          result.push(field);
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+      result.push(field);
+      return result;
+    }
+
+    function detectColumns(headers) {
+      const result = { name: -1, code: -1, date: -1, price: -1, shares: -1, direction: -1 };
+      headers.forEach((h, i) => {
+        const s = h.replace(/[\s\uFEFF]/g, '');
+        if (/股票名称|证券名称|名称/.test(s) && result.name < 0) result.name = i;
+        if (/股票代码|证券代码|代码/.test(s) && result.code < 0) result.code = i;
+        if (/成交日期|发生日期|日期|时间/.test(s) && result.date < 0) result.date = i;
+        if (/成交价|成交价格|价格|均价/.test(s) && result.price < 0) result.price = i;
+        if (/成交数量|数量|股数/.test(s) && result.shares < 0) result.shares = i;
+        if (/买卖|方向|操作|标志/.test(s) && result.direction < 0) result.direction = i;
+      });
+      // 至少需要：名称、日期、价格、数量
+      if (result.name < 0 || result.date < 0 || result.price < 0 || result.shares < 0) return null;
+      return result;
+    }
+
+    function renderImportPreview(warnings) {
+      document.getElementById('importStep1').style.display = 'none';
+      document.getElementById('importStep2').style.display = 'block';
+      document.getElementById('importFooter').style.display = 'flex';
+      document.getElementById('importCount').textContent = parsedTrades.length;
+
+      let html = '<thead><tr><th>股票名称</th><th>代码</th><th>日期</th><th>价格</th><th>数量</th><th>操作</th></tr></thead><tbody>';
+      parsedTrades.forEach((t, idx) => {
+        html += `<tr>
+          <td>${t.stockName}</td>
+          <td style="font-size:0.78rem;color:var(--text-light);">${t.stockCode || '-'}</td>
+          <td>${t.buyDate || '-'}</td>
+          <td>${t.buyPrice || t.sellPrice || '-'}</td>
+          <td>${t.shares}</td>
+          <td><button class="btn btn-sm btn-outline" onclick="removeParsedRow(${idx})">✕</button></td>
+        </tr>`;
+      });
+      html += '</tbody>';
+      document.getElementById('importPreview').innerHTML = html;
+      document.getElementById('importWarnings').innerHTML = warnings.length
+        ? warnings.map(w => `<div class="import-warn">⚠️ ${w}</div>`).join('')
+        : '';
+    }
+
+    function removeParsedRow(idx) {
+      parsedTrades.splice(idx, 1);
+      if (parsedTrades.length === 0) resetImport();
+      else renderImportPreview([]);
+    }
+
+    function confirmImport() {
+      if (parsedTrades.length === 0) return;
+
+      // 合并同股票同价格的买卖为一条完整记录
+      const merged = {};
+      const result = [];
+
+      parsedTrades.forEach(t => {
+        const key = t.stockName + '|' + (t.buyPrice || t.sellPrice) + '|' + t.shares;
+        if (merged[key]) {
+          if (t.buyPrice > 0 && t.buyDate) { merged[key].buyPrice = t.buyPrice; merged[key].buyDate = t.buyDate; }
+          if (t.sellPrice > 0 && t.sellDate) { merged[key].sellPrice = t.sellPrice; merged[key].sellDate = t.sellDate; }
+        } else {
+          merged[key] = { ...t };
+        }
+      });
+
+      Object.values(merged).forEach(t => result.push(t));
+
+      let imported = 0;
+      result.forEach(t => {
+        DB.addTrade({
+          stockName: t.stockName,
+          stockCode: t.stockCode || '',
+          buyDate: t.buyDate || '',
+          buyPrice: t.buyPrice || 0,
+          sellDate: t.sellDate || '',
+          sellPrice: t.sellPrice || '',
+          shares: t.shares || 0,
+          notes: '',
+        });
+        imported++;
+      });
+
+      closeModal('importModal');
+      renderTrades();
+      showToast(`✅ 成功导入 ${imported} 条交易记录`);
     }
 
     // ---- 初始化 ----
