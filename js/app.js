@@ -900,6 +900,131 @@ const DB = {
       status: '已废弃',
     });
 
+    // ===== 天赢居体系知识（2篇） =====
+    this.addArticle({
+      title: '天赢居核心工具：趋势线、均线与144线逐级升级法',
+      category: '技术分析',
+      content: `<h3>天赢居体系概述</h3><p>天赢居（tyj）是国内实战派趋势研判博主，1993年入市，独创《趋势线相交确定变盘时间之窗》和《农历节气与股市关联》方法体系。核心思想是："先看趋势，再定仓位，再选板块，最后挑个股。时间比空间更重要，多体系共振之后再下手。"</p>
+
+<h4>五步分析流程（顺序不可乱）</h4>
+<ol>
+<li><b>看大盘</b>：决定仓位。牛市持股为主，熊市持币为主，震荡市高抛低吸。</li>
+<li><b>看时间</b>：决定出手时机。是否在时间之窗或节气变盘点附近？</li>
+<li><b>看趋势线/均线</b>：判断当前位置是支撑还是压力。</li>
+<li><b>看板块</b>：判断胜算高低。资金在攻哪个方向？</li>
+<li><b>看个股</b>：寻找买卖点。个股形态确认后才能执行。</li>
+</ol>
+
+<h4>工具一：趋势线相交变盘</h4>
+<p><b>原理</b>：两条以上重要趋势线在某日相交，该交叉点即是高概率变盘点（时间+空间双重共振）。</p><ul>
+<li>必须用<b>重要高低点</b>取点，不能用普通波动点</li>
+<li>"两点成线，三点验证"——趋势线需要至少三次触碰确认</li>
+<li>趋势线允许<b>2%以内误差</b>，超过3%说明原结构已被改变</li>
+<li>必须提前<b>计算</b>未来交点，不能只画线事后解释</li>
+</ul>
+
+<h4>工具二：144线逐级升级法</h4>
+<p><b>核心思想</b>：每个时间级别的144均线都是关键转折点。站上→回踩不破→升级到更高级别。</p>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">级别</th><th style="padding:8px;">信号含义</th><th style="padding:8px;">操作</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">1分钟144线</td><td style="padding:6px;border:1px solid var(--border-light);">超短线企稳</td><td style="padding:6px;border:1px solid var(--border-light);">观察</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">5分钟144线</td><td style="padding:6px;border:1px solid var(--border-light);">短线转强信号</td><td style="padding:6px;border:1px solid var(--border-light);">关注</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">15分钟144线</td><td style="padding:6px;border:1px solid var(--border-light);">短线确认</td><td style="padding:6px;border:1px solid var(--border-light);">逐步加仓</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">30分钟144线</td><td style="padding:6px;border:1px solid var(--border-light);">中线转强</td><td style="padding:6px;border:1px solid var(--border-light);">加仓</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">小时144线</td><td style="padding:6px;border:1px solid var(--border-light);">日线反转</td><td style="padding:6px;border:1px solid var(--border-light);">重仓</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">日线144线</td><td style="padding:6px;border:1px solid var(--border-light);">大趋势反转</td><td style="padding:6px;border:1px solid var(--border-light);">长线持有</td></tr>
+</table>
+<p><b>关键要领</b>：突破144线后必有回踩，回踩不破才是右侧调入点。瞬间破位又快速收回不算破位。收盘站稳+小时级别MACD/KDJ双金叉=真确认。记住：<b>线上持股，破位出局</b>。</p>
+
+<h4>工具三：节气与股市</h4>
+<p>中国股市参与者受传统文化影响，行为节律与二十四节气高度相关。三十年历史数据统计验证。</p><ul>
+<li><b>冬至</b>：一年中最重要的抄底窗口</li>
+<li><b>立春</b>：第二重要窗口，多数年份助涨</li>
+<li><b>清明/谷雨</b>：偏空，逃顶窗口</li>
+<li><b>立夏/芒种/夏至</b>：大波段转折高发区，高度警惕</li>
+<li>使用时注意：节气前后1-2天即进入变盘窗口</li>
+</ul>
+
+<h4>工具四：均线体系（斐波那契数列）</h4>
+<p>核心均线：5、8、13、21、34、55、89、144、233、377日均线。</p><ul>
+<li><b>5、8日均线</b>：短线持股线，破位即出</li>
+<li><b>13、21日均线</b>：中线止损线</li>
+<li><b>55、89、144日均线</b>：多头趋势核心</li>
+<li><b>233、377日均线</b>：长线牛熊分界</li>
+</ul>
+<p><b>五线开花</b>：5/8/13/21/34 多头发散向上→强势，持股。<br>
+<b>毒蜘蛛</b>：多条均线收敛后向下发散→弱势，强阻力。</p>
+
+<h4>工具五：多体系共振检查表</h4>
+<p>不靠单一信号下手，多个独立体系分析后取重叠区，重叠越多胜算越高：</p>
+<table style="width:100%;font-size:0.85rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">共振项数</th><th style="padding:8px;">胜算</th><th style="padding:8px;">建议仓位</th><th style="padding:8px;">操作</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">≥7项</td><td style="padding:6px;border:1px solid var(--border-light);">≥70%</td><td style="padding:6px;border:1px solid var(--border-light);">重仓</td><td style="padding:6px;border:1px solid var(--border-light);">进攻</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">5-6项</td><td style="padding:6px;border:1px solid var(--border-light);">60-70%</td><td style="padding:6px;border:1px solid var(--border-light);">半仓</td><td style="padding:6px;border:1px solid var(--border-light);">谨慎参与</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);"><5项</td><td style="padding:6px;border:1px solid var(--border-light);"><60%</td><td style="padding:6px;border:1px solid var(--border-light);">轻仓/空仓</td><td style="padding:6px;border:1px solid var(--border-light);">观望</td></tr>
+</table>
+<p><b>共振体系</b>：趋势线 + 均线 + K线形态 + 波浪结构 + 黄金分割 + 时间之窗 + 节气周期 + 量价关系 + 板块轮动 + 箱体通道 + 前高前低 + 资金行为，共12个独立体系。</p>`,
+    });
+    this.addArticle({
+      title: '天赢居操盘心法：买卖点体系与仓位管理',
+      category: '交易心理',
+      content: `<h3>操盘心法七条</h3><ol>
+<li><b>用数学炒股，减少情绪干扰</b>——胜算七成进攻，六成谨慎，低于六成放弃。</li>
+<li><b>线上持股，线下持币</b>——按规矩办，不凭情绪猜。</li>
+<li><b>买卖点成对使用</b>——买进之前先想好怎么卖，没有卖出计划的买进是赌博。</li>
+<li><b>错了立即止损，绝不盲目补仓。</b></li>
+<li><b>少赚不可怕，失控才可怕</b>——复利增长才是正道。</li>
+<li><b>结构性慢牛里只做主线</b>——主线选错，大盘涨也白搭。</li>
+<li><b>高胜算处进攻，普通胜算处谨慎，低胜算处等待</b>——不因害怕踏空而追涨。</li>
+</ol>
+
+<h4>经典买点（只做这7种）</h4><ol>
+<li>双底、三重底买点</li>
+<li>底部立桩量买点（长期横盘后放量3倍以上突破箱顶）</li>
+<li>五线开花买点（多条均线多头发散）</li>
+<li>空中加油买点（放量上涨→缩量回踩→再涨）</li>
+<li>放量突破箱顶创新高买点</li>
+<li>一浪上涨后二浪不破起点的回踩买点</li>
+<li>多周期逐级升级后的右侧确认买点</li>
+</ol>
+
+<h4>经典卖点</h4><ol>
+<li>双顶、三重顶卖点</li>
+<li>平台破位卖点</li>
+<li>反抽不过原箱顶卖点</li>
+<li>顶部放量滞涨卖点</li>
+<li>跌破前一波段顶部卖点</li>
+<li>5日、8日均线死叉卖点</li>
+<li>13/21/55日均线止损卖点</li>
+<li>通道下轨、趋势线止损卖点</li>
+<li>黄金目标线左侧止盈卖点</li>
+</ol>
+
+<h4>趋势线卖点四式</h4><table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">卖点</th><th style="padding:8px;">触发条件</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">趋势线压力卖点</td><td style="padding:6px;border:1px solid var(--border-light);">到达下降压力线+放量滞涨+KDJ死叉+MACD红柱缩短</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">跌破趋势线卖点</td><td style="padding:6px;border:1px solid var(--border-light);">上升线跌破（5分钟降级→15分钟转弱→小时风险→日线防守）</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">破位反抽卖点</td><td style="padding:6px;border:1px solid var(--border-light);">支撑跌破后反抽不过原支撑，不能犹豫</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">通道上轨卖点</td><td style="padding:6px;border:1px solid var(--border-light);">冲上轨+涨幅大+远离5/8日均线+高位放量滞涨</td></tr>
+</table>
+
+<h4>仓位管理矩阵</h4><table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">大盘阶段</th><th style="padding:8px;">持仓策略</th><th style="padding:8px;">操作节奏</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">牛市/主升浪</td><td style="padding:6px;border:1px solid var(--border-light);">持股为主</td><td style="padding:6px;border:1px solid var(--border-light);">偶尔做差价</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">熊市</td><td style="padding:6px;border:1px solid var(--border-light);">持币为主</td><td style="padding:6px;border:1px solid var(--border-light);">偶尔做8-13天反抽</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">震荡市</td><td style="padding:6px;border:1px solid var(--border-light);">高抛低吸</td><td style="padding:6px;border:1px solid var(--border-light);">箱顶卖、箱底买</td></tr>
+</table>
+
+<h4>真假突破辨别</h4><p><b>真突破</b>：突破关键趋势线+放量明显+突破后不快速跌回+回踩不破+均线同步转强+板块主线配合+大盘环境不差。</p><p><b>假突破</b>：突破时量能不足+突破后很快跌回+板块没有配合+大盘处于压力位+高位长上影线+次日不能继续放量上攻。</p><p>两种确认法：①股价离开原平台超过3%并继续放量远离；②回踩不破原平台再重新离开。<br>跌回趋势线下方就承认失败，不幻想。</p>
+
+<h4>心态自检清单</h4><ul>
+<li>❑ 买点不敢买→犹豫踏空</li>
+<li>❑ 上涨中没耐心→频繁换股</li>
+<li>❑ 卖点不敢卖→侥幸扛单</li>
+<li>❑ 亏了想补仓→越套越深</li>
+<li>❑ 赚了就想马上兑现→不让利润奔跑</li>
+<li>❑ 永远临时起意→没有计划</li>
+<li>❑ 看不清方向还操作→强行交易</li>
+</ul>
+<p><b>以下七种不做</b>：大盘不好不做 / 非主线不做 / 没有把握不做 / 没有卖出计划不买 / 破位不止损不行 / 心情不好不做 / 过了最佳位置不追。</p>`,
+    });
+
     // ===== 交易记录（6笔） =====
 
     this.addTrade({
