@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>自选股 - 我的投资智库</title>
   <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     .group-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
     .group-tab { padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); background: var(--card-bg); border: 1px solid var(--border); transition: all 0.15s; }
@@ -42,6 +43,27 @@
     .alert-badge { position: absolute; top: 8px; right: 8px; background: var(--warning); color: #fff; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
 
     @media (max-width: 480px) { .watch-grid { grid-template-columns: 1fr; } }
+
+    /* Photo import */
+    #photoPreview { max-width: 100%; max-height: 300px; object-fit: contain; border-radius: var(--radius-sm); margin: 10px 0; }
+    .ocr-match-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border-light); font-size: 0.85rem; }
+    .ocr-match-item:hover { background: #f8fafc; }
+    .ocr-match-item .status { font-size: 0.75rem; color: var(--success); }
+
+    /* Advice */
+    .advice-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 18px; margin-bottom: 14px; }
+    .advice-card .a-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .advice-card .a-stock { font-size: 1.1rem; font-weight: 600; }
+    .advice-card .a-rating { font-size: 1.5rem; }
+    .advice-card .a-signal { padding: 4px 14px; border-radius: 20px; font-size: 0.9rem; font-weight: 600; }
+    .advice-card .a-signal.buy { background: #e8f5e9; color: #2e7d32; }
+    .advice-card .a-signal.hold { background: #fff8e1; color: #f57c00; }
+    .advice-card .a-signal.sell { background: #ffebee; color: #c62828; }
+    .advice-card .a-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+    .advice-card .a-grid .item { background: var(--bg); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 0.82rem; }
+    .advice-card .a-grid .item .lbl { color: var(--text-light); }
+    .advice-card .a-grid .item .val { font-weight: 500; margin-top: 2px; }
+    .advice-card .a-reason { margin-top: 10px; padding: 10px; background: var(--accent-light); border-radius: var(--radius-sm); font-size: 0.85rem; line-height: 1.6; }
   </style>
 </head>
 <body>
@@ -69,6 +91,7 @@
     <div class="section-header">
       <h2>👁️ 自选股</h2>
       <div class="actions">
+        <button class="btn btn-outline" onclick="openPhotoImport()">📷 拍照导入</button>
         <button class="btn btn-outline" onclick="refreshAllPrices()">🔄 刷新行情</button>
         <button class="btn btn-primary" onclick="openAddModal()">＋ 添加自选股</button>
       </div>
@@ -166,6 +189,54 @@
         <button class="btn btn-outline" onclick="closeModal('watchModal')">取消</button>
         <button class="btn btn-primary" onclick="saveWatch()">保存</button>
       </div>
+    </div>
+  </div>
+
+  <!-- ===== 拍照导入 ===== -->
+  <div class="modal-overlay" id="photoModal">
+    <div class="modal" style="max-width:580px;">
+      <div class="modal-header">
+        <h3>📷 拍照导入自选股</h3>
+        <button class="modal-close" onclick="closeModal('photoModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">
+          上传持仓截图，系统自动识别股票代码和成本价，一键添加为自选股。
+        </p>
+        <div id="photoStep1">
+          <label style="display:block;padding:30px;border:2px dashed var(--border);border-radius:var(--radius);text-align:center;cursor:pointer;" id="photoDropZone">
+            <div style="font-size:2.5rem;margin-bottom:4px;">📸</div>
+            <div style="color:var(--text-secondary);">点击选择持仓截图</div>
+            <div style="font-size:0.78rem;color:var(--text-light);margin-top:4px;">支持 .jpg .png .jpeg</div>
+            <input type="file" id="photoInput" accept="image/*" style="display:none;" onchange="handlePhoto(this.files[0])">
+          </label>
+          <div id="ocrStatus" style="text-align:center;padding:16px;display:none;">
+            <span class="loading-spinner"></span> 正在识别图片中的股票代码...
+          </div>
+        </div>
+        <div id="photoStep2" style="display:none;">
+          <img id="photoPreview"><div style="font-size:0.78rem;color:var(--text-light);margin-bottom:8px;">识别到的股票：</div>
+          <div id="ocrResults" style="max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);"></div>
+          <div style="margin-top:10px;font-size:0.82rem;color:var(--text-light);" id="ocrFallback">
+            未识别到股票代码？<a href="#" onclick="showOcrHelp();return false;" style="color:var(--accent);">点此手动填写</a>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="photoFooter" style="display:none;">
+        <button class="btn btn-outline" onclick="closeModal('photoModal')">取消</button>
+        <button class="btn btn-primary" onclick="confirmPhotoImport()">✅ 确认添加选中的自选股</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 投资建议 ===== -->
+  <div class="modal-overlay" id="adviceModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3>💡 投资建议</h3>
+        <button class="modal-close" onclick="closeModal('adviceModal')">✕</button>
+      </div>
+      <div class="modal-body" id="adviceBody" style="max-height:70vh;overflow-y:auto;"></div>
     </div>
   </div>
 
@@ -323,6 +394,7 @@
           ${w.notes ? `<div class="wc-notes">${w.notes}</div>` : ''}
           <div class="wc-actions">
             <button class="${w.alertEnabled?'alert-on':'alert-off'}" onclick="toggleAlert('${w.id}')" title="提醒开关">${w.alertEnabled?'🔔':'🔕'}</button>
+            <button class="edit" onclick="showAdvice('${w.id}')" title="投资建议">💡</button>
             <button class="edit" onclick="editWatch('${w.id}')">✏️</button>
             <button class="del" onclick="deleteWatch('${w.id}')">🗑️</button>
           </div>
@@ -349,6 +421,283 @@
           try { if (Notification.permission === 'granted') new Notification('止损提醒', { body: `${w.stockName} 已跌破止损价 ¥${w.stopLossPrice}` }); } catch(e) {}
         }
       });
+    }
+
+    // ===== 拍照导入 + OCR 识别 =====
+    let ocrResults = [];
+
+    async function openPhotoImport() {
+      ocrResults = [];
+      document.getElementById('photoStep1').style.display = 'block';
+      document.getElementById('photoStep2').style.display = 'none';
+      document.getElementById('photoFooter').style.display = 'none';
+      document.getElementById('ocrStatus').style.display = 'none';
+      document.getElementById('photoInput').value = '';
+      openModal('photoModal');
+    }
+
+    // 拖拽支持
+    document.addEventListener('DOMContentLoaded', function() {
+      const dz = document.getElementById('photoDropZone');
+      if (!dz) return;
+      ['dragenter','dragover','dragleave','drop'].forEach(evt => dz.addEventListener(evt, e => e.preventDefault()));
+      dz.addEventListener('dragover', () => dz.style.borderColor = 'var(--accent)');
+      dz.addEventListener('dragleave', () => dz.style.borderColor = 'var(--border)');
+      dz.addEventListener('drop', e => {
+        dz.style.borderColor = 'var(--border)';
+        if (e.dataTransfer.files.length) handlePhoto(e.dataTransfer.files[0]);
+      });
+    });
+
+    function handlePhoto(file) {
+      if (!file) return;
+      // 显示图片预览
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        const imgData = e.target.result;
+        document.getElementById('photoPreview').src = imgData;
+        document.getElementById('photoStep1').style.display = 'none';
+        document.getElementById('ocrStatus').style.display = 'block';
+        try {
+          // 使用 Tesseract.js 进行 OCR 识别
+          const { data } = await Tesseract.recognize(imgData, 'chi_sim', {
+            logger: m => { if (m.status === 'recognizing text') document.getElementById('ocrStatus').querySelector('div:last-child').textContent = '识别中... (' + Math.round(m.progress * 100) + '%)'; }
+          });
+          // 解析 OCR 文本，提取股票代码（6位数字）和价格
+          const text = data.text;
+          const lines = text.split('\n').filter(l => l.trim());
+          const extracted = [];
+          // 匹配6位数字（股票代码）
+          const codeRegex = /\b(\d{6})\b/g;
+          // 匹配价格（带小数点的数字）
+          const priceRegex = /(\d+\.\d{2})/g;
+
+          lines.forEach((line, idx) => {
+            const codes = [...line.matchAll(codeRegex)].map(m => m[1]);
+            const prices = [...line.matchAll(priceRegex)].map(m => parseFloat(m[1]));
+            if (codes.length > 0) {
+              codes.forEach((code, ci) => {
+                // 找到与代码在同一行或最近的价格
+                let costPrice = prices[0] || 0;
+                extracted.push({ code, costPrice, line, idx });
+              });
+            }
+          });
+
+          // 去重
+          const unique = {};
+          extracted.forEach(e => {
+            if (!unique[e.code] || Math.abs(e.costPrice - parseInt(e.costPrice)) > Math.abs(unique[e.code].costPrice - parseInt(unique[e.code].costPrice))) {
+              unique[e.code] = e;
+            }
+          });
+
+          // 查询每个代码的股票名称（最多10只）
+          const results = Object.values(unique).slice(0, 10);
+          for (const r of results) {
+            try {
+              const prefix = r.code.startsWith('6') ? '1.' : '0.';
+              const resp = await fetch(`https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${prefix}${r.code}&fields=f2,f12,f14&fltt=2&_=${Date.now()}`);
+              const json = await resp.json();
+              const stock = json?.data?.diff?.[0];
+              if (stock && stock.f14) {
+                r.name = stock.f14;
+                r.status = '✅ 已识别';
+              } else {
+                r.status = '⚠️ 未找到';
+              }
+            } catch(e) { r.status = '❌ 查询失败'; }
+          }
+          ocrResults = results.filter(r => r.name);
+
+          // 渲染识别结果
+          document.getElementById('ocrStatus').style.display = 'none';
+          document.getElementById('photoStep2').style.display = 'block';
+
+          const el = document.getElementById('ocrResults');
+          if (!ocrResults.length) {
+            el.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-light);">未识别到有效股票代码</div>';
+            document.getElementById('photoFooter').style.display = 'none';
+          } else {
+            el.innerHTML = ocrResults.map((r, i) => `
+              <div class="ocr-match-item">
+                <div><input type="checkbox" checked id="ocr_${i}">
+                  <strong>${r.name||'?'}</strong> <span style="color:var(--text-light);font-size:0.78rem;">${r.code}</span>
+                </div>
+                <div>
+                  <span style="font-size:0.78rem;color:var(--text-light);">成本价</span>
+                  <input type="number" step="0.01" value="${r.costPrice||0}" style="width:80px;padding:2px 6px;border:1px solid var(--border);border-radius:3px;" id="ocrPrice_${i}">
+                  <span class="status">${r.status||''}</span>
+                </div>
+              </div>
+            `).join('');
+            document.getElementById('photoFooter').style.display = 'flex';
+          }
+        } catch(err) {
+          document.getElementById('ocrStatus').innerHTML = '<p style="color:var(--danger);">❌ OCR 识别失败：' + err.message + '</p>';
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function showOcrHelp() {
+      document.getElementById('photoStep2').style.display = 'none';
+      document.getElementById('photoFooter').style.display = 'none';
+      document.getElementById('photoStep1').style.display = 'block';
+    }
+
+    function confirmPhotoImport() {
+      let added = 0;
+      ocrResults.forEach((r, i) => {
+        const cb = document.getElementById('ocr_' + i);
+        if (cb && cb.checked) {
+          const price = parseFloat(document.getElementById('ocrPrice_' + i)?.value) || 0;
+          // 检查是否已存在
+          const existing = DB.getWatchlist().find(w => w.stockCode === r.code);
+          if (existing) {
+            showToast(`${r.name} 已在自选股中`);
+            return;
+          }
+          DB.addWatch({
+            stockName: r.name,
+            stockCode: r.code,
+            group: '核心关注',
+            addPrice: price,
+            addDate: new Date().toISOString().slice(0, 10),
+            notes: '📷 拍照导入，成本价 ¥' + price.toFixed(2),
+            targetPrice: 0,
+            stopLossPrice: 0,
+            alertEnabled: true,
+          });
+          added++;
+        }
+      });
+      closeModal('photoModal');
+      if (added > 0) {
+        renderGroupTabs();
+        renderWatchlist();
+        refreshAllPrices();
+        showToast(`✅ 成功导入 ${added} 只自选股`);
+      } else {
+        showToast('未添加新自选股');
+      }
+    }
+
+    // ===== 投资建议 =====
+    async function showAdvice(id) {
+      const w = DB.getWatchlist().find(x => x.id === id);
+      if (!w) return;
+      openModal('adviceModal');
+      document.getElementById('adviceBody').innerHTML = `
+        <div style="text-align:center;padding:30px;"><span class="loading-spinner"></span> 正在分析 ${w.stockName}...</div>`;
+
+      try {
+        const prefix = w.stockCode.startsWith('6') ? '1.' : '0.';
+        const resp = await fetch(`https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${prefix}${w.stockCode}&fields=f2,f3,f8,f9,f10,f20,f23,f37,f62&fltt=2&_=${Date.now()}`);
+        const json = await resp.json();
+        const s = json?.data?.diff?.[0];
+
+        if (!s) {
+          document.getElementById('adviceBody').innerHTML = '<p style="padding:30px;text-align:center;color:var(--text-light);">未能获取该股票数据</p>';
+          return;
+        }
+
+        const price = parseFloat(s.f2) || 0;
+        const pct = parseFloat(s.f3) || 0;
+        const pe = parseFloat(s.f9) || 0;
+        const pb = parseFloat(s.f23) || 0;
+        const mcap = parseFloat(s.f20) || 0;
+        const turnover = parseFloat(s.f8) || 0;
+        const volRatio = parseFloat(s.f10) || 0;
+        const divYield = parseFloat(s.f37) || 0;
+        const moneyFlow = parseFloat(s.f62) || 0;
+
+        // 评分系统（0-100）
+        let score = 50;
+        const reasons = [];
+        const signals = [];
+
+        // 1. 估值评分（-20 ~ +20）
+        let peScore = 0;
+        if (pe > 0 && pe < 15) { peScore = 20; signals.push('📊 低估值（PE=' + pe + '）'); }
+        else if (pe >= 15 && pe < 30) { peScore = 10; signals.push('📊 估值合理（PE=' + pe + '）'); }
+        else if (pe >= 30 && pe < 60) { peScore = 0; }
+        else if (pe >= 60) { peScore = -10; signals.push('📊 估值偏高（PE=' + pe + '）'); }
+        else { peScore = -5; signals.push('📊 公司亏损中'); }
+        score += peScore;
+
+        // 2. 资金面（-15 ~ +15）
+        if (moneyFlow > 0) { score += Math.min(15, moneyFlow / 2000); signals.push('💰 主力净流入 ' + (moneyFlow/10000).toFixed(2) + '万'); }
+        else if (moneyFlow > -500) { score += 0; }
+        else { score -= Math.min(15, Math.abs(moneyFlow) / 2000); signals.push('💰 主力净流出较大'); }
+
+        // 3. 动量（-20 ~ +20）
+        if (pct > 5) { score += Math.min(20, pct * 2); signals.push('📈 短期强势 +' + pct.toFixed(2) + '%'); }
+        else if (pct > 0) { score += pct * 2; }
+        else if (pct > -5) { score -= Math.abs(pct) * 1.5; }
+        else { score -= Math.min(20, Math.abs(pct) * 2); signals.push('📉 短期跌幅较大 ' + pct.toFixed(2) + '%'); }
+
+        // 4. 量能（-10 ~ +10）
+        if (volRatio > 1.5) { score += 8; signals.push('📊 放量 ' + volRatio.toFixed(2) + '倍'); }
+        else if (volRatio > 0.8) { score += 3; }
+        else if (volRatio < 0.5) { score -= 5; }
+
+        // 5. 换手率（-5 ~ +10）
+        if (turnover > 2 && turnover < 15) { score += 5; }
+        else if (turnover > 15) { score -= 3; }
+
+        // 6. 股息（-5 ~ +10）
+        if (divYield > 3) { score += Math.min(10, divYield * 2); signals.push('💰 高股息率 ' + divYield.toFixed(2) + '%'); }
+        else if (divYield > 1) { score += 3; }
+
+        // 7. 目标/止损
+        if (w.targetPrice && price > 0 && price >= w.targetPrice * 0.95) {
+          reasons.push('⚠️ 接近目标价 ¥' + w.targetPrice + '，注意止盈');
+          score -= 5;
+        }
+        if (w.stopLossPrice && price > 0 && price <= w.stopLossPrice * 1.05) {
+          reasons.push('🚨 接近止损价 ¥' + w.stopLossPrice + '，注意风控');
+          score -= 10;
+        }
+
+        // 综合评分约束
+        score = Math.max(0, Math.min(100, score));
+        let signal, signalCls, signalDesc;
+        if (score >= 65) { signal = '🟢 买入'; signalCls = 'buy'; signalDesc = '综合评分 ' + score + ' 分，各项指标健康，建议买入/加仓'; }
+        else if (score >= 40) { signal = '🟡 持有'; signalCls = 'hold'; signalDesc = '综合评分 ' + score + ' 分，整体中性，建议持有观察'; }
+        else { signal = '🔴 卖出/回避'; signalCls = 'sell'; signalDesc = '综合评分 ' + score + ' 分，多项指标偏弱，建议减仓/回避'; }
+
+        const mcapStr = mcap > 1e10 ? (mcap / 1e8).toFixed(0) + '亿' : (mcap / 1e8).toFixed(2) + '亿';
+
+        document.getElementById('adviceBody').innerHTML = `
+          <div class="advice-card">
+            <div class="a-header">
+              <div><div class="a-stock">${w.stockName} <span style="font-size:0.82rem;color:var(--text-light);">${w.stockCode}</span></div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px;">自选价 ¥${(w.addPrice||0).toFixed(2)} | 最新价 ¥${price.toFixed(2)}</div></div>
+              <div class="a-signal ${signalCls}">${signal}</div>
+            </div>
+            <div style="font-size:0.9rem;color:var(--text);padding:6px 0 10px;border-bottom:1px solid var(--border-light);">${signalDesc}</div>
+            <div class="a-grid">
+              <div class="item"><div class="lbl">市盈率</div><div class="val">${pe > 0 ? pe.toFixed(1) : '亏损'}</div></div>
+              <div class="item"><div class="lbl">市净率</div><div class="val">${pb > 0 ? pb.toFixed(2) : '—'}</div></div>
+              <div class="item"><div class="lbl">总市值</div><div class="val">${mcapStr}</div></div>
+              <div class="item"><div class="lbl">换手率</div><div class="val">${turnover.toFixed(2)}%</div></div>
+              <div class="item"><div class="lbl">涨跌幅</div><div class="val" style="color:${pct>=0?'var(--danger)':'var(--success)'};">${pct>0?'+':''}${pct.toFixed(2)}%</div></div>
+              <div class="item"><div class="lbl">主力净流入</div><div class="val" style="color:${moneyFlow>=0?'var(--success)':'var(--danger)'};">${(moneyFlow/10000).toFixed(2)}万</div></div>
+              ${w.targetPrice ? `<div class="item"><div class="lbl">距目标价</div><div class="val">${((w.targetPrice/price-1)*100).toFixed(1)}%</div></div>` : ''}
+              ${w.stopLossPrice ? `<div class="item"><div class="lbl">距止损价</div><div class="val">${((price/w.stopLossPrice-1)*100).toFixed(1)}%</div></div>` : ''}
+            </div>
+            <div class="a-reason">
+            ${signals.map(s => '<div>• ' + s + '</div>').join('')}
+            ${reasons.map(r => '<div>• ' + r + '</div>').join('')}
+            </div>
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-light);text-align:center;padding:10px;">
+            数据来源：东方财富 | 评分仅供参考，不构成投资建议
+          </div>`;
+      } catch(e) {
+        document.getElementById('adviceBody').innerHTML = '<p style="padding:30px;text-align:center;color:var(--danger);">分析失败：' + e.message + '</p>';
+      }
     }
 
     // ===== 股票代码自动查询 =====
