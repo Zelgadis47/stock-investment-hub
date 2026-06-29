@@ -1,0 +1,22 @@
+# 我的投资智库 - Render 部署配置
+# 文档：https://render.com/docs/infrastructure-as-code
+
+services:
+  - type: web
+    name: stock-investment-hub
+    env: node
+    region: singapore  # 新加坡节点，对国内访问较快
+    plan: free
+    buildCommand: npm install --production
+    startCommand: node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: STORAGE
+        value: gist
+      - key: GIST_ID
+        sync: false
+        # ⚠️ 请在 Render Dashboard 中手动设置以下变量：
+        # GIST_ID - 你的 GitHub Gist ID
+        # GITHUB_TOKEN - 你的 GitHub Personal Access Token
+      - key: GITHUB_TOKEN
+        sync: false
