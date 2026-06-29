@@ -272,7 +272,10 @@ const DB = {
                       || (d.trades && d.trades.length > 0)
                       || (d.snapshots && d.snapshots.length > 0)
                       || (d.watchlist && d.watchlist.length > 0)
-                      || (d.alerts && d.alerts.length > 0);
+                      || (d.alerts && d.alerts.length > 0)
+                      || (d.diaries && d.diaries.length > 0)
+                      || (d.news && d.news.length > 0)
+                      || (d.reports && d.reports.length > 0);
         if (hasData) {
           if (d.articles) {
             d.articles.forEach(a => { a.updatedAt = a.updatedAt || a.createdAt; });
@@ -291,6 +294,9 @@ const DB = {
           if (d.snapshots) this.setSnapshots(d.snapshots);
           if (d.watchlist) this.setWatchlist(d.watchlist);
           if (d.alerts) this.setAlerts(d.alerts);
+          if (d.diaries) this.setDiaries(d.diaries);
+          if (d.news) this.setNews(d.news);
+          if (d.reports) this.setReports(d.reports);
           return true;
         }
         this._syncAfterWrite();
@@ -316,6 +322,9 @@ const DB = {
           snapshots: this.getSnapshots(),
           watchlist: this.getWatchlist(),
           alerts: this.getAlerts(),
+          diaries: this.getDiaries(),
+          news: this.getNews(),
+          reports: this.getReports(),
         };
         const resp = await fetch(`https://api.github.com/gists/${this.GIST_ID}`, {
           method: 'PATCH',
@@ -407,6 +416,79 @@ const DB = {
   },
   deleteAlert(id) {
     this.setAlerts(this.getAlerts().filter(a => a.id !== id));
+  },
+
+  // ===== 投资日记 =====
+  getDiaries() { return this.get('diaries') || []; },
+  setDiaries(arr) { this.set('diaries', arr); },
+  addDiary(d) {
+    const list = this.getDiaries();
+    d.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    d.createdAt = new Date().toISOString();
+    // 同日覆盖
+    const filtered = list.filter(x => x.date !== d.date);
+    filtered.unshift(d);
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.setDiaries(filtered);
+    return d;
+  },
+  updateDiary(id, data) {
+    const list = this.getDiaries();
+    const idx = list.findIndex(d => d.id === id);
+    if (idx < 0) return null;
+    Object.assign(list[idx], data);
+    this.setDiaries(list);
+    return list[idx];
+  },
+  deleteDiary(id) {
+    this.setDiaries(this.getDiaries().filter(d => d.id !== id));
+  },
+
+  // ===== 资讯收藏 =====
+  getNews() { return this.get('news') || []; },
+  setNews(arr) { this.set('news', arr); },
+  addNews(n) {
+    const list = this.getNews();
+    n.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    n.collectedAt = new Date().toISOString();
+    n.read = false;
+    list.unshift(n);
+    this.setNews(list);
+    return n;
+  },
+  updateNews(id, data) {
+    const list = this.getNews();
+    const idx = list.findIndex(n => n.id === id);
+    if (idx < 0) return null;
+    Object.assign(list[idx], data);
+    this.setNews(list);
+    return list[idx];
+  },
+  deleteNews(id) {
+    this.setNews(this.getNews().filter(n => n.id !== id));
+  },
+
+  // ===== 研报 =====
+  getReports() { return this.get('reports') || []; },
+  setReports(arr) { this.set('reports', arr); },
+  addReport(r) {
+    const list = this.getReports();
+    r.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    r.collectedAt = new Date().toISOString();
+    list.unshift(r);
+    this.setReports(list);
+    return r;
+  },
+  updateReport(id, data) {
+    const list = this.getReports();
+    const idx = list.findIndex(r => r.id === id);
+    if (idx < 0) return null;
+    Object.assign(list[idx], data);
+    this.setReports(list);
+    return list[idx];
+  },
+  deleteReport(id) {
+    this.setReports(this.getReports().filter(r => r.id !== id));
   },
 
   // 统计数据
@@ -740,6 +822,62 @@ const DB = {
       this.addAlert({ stockCode: '300750', stockName: '宁德时代', type: 'price_down', condition: '跌破', threshold: 220, desc: '宁德时代跌破220' });
       this.addAlert({ stockCode: '002594', stockName: '比亚迪', type: 'price_up', condition: '突破', threshold: 320, desc: '比亚迪突破320目标价' });
     }
+
+    // ===== 投资日记（5篇） =====
+    if (this.getDiaries().length === 0) {
+      const today = new Date();
+      for (let i = 0; i < 5; i++) {
+        const d = new Date(today); d.setDate(d.getDate() - i * 3);
+        const dateStr = d.toISOString().slice(0, 10);
+        const moods = ['乐观', '中性', '谨慎', '中性', '乐观'];
+        const views = [
+          '大盘缩量震荡，观望情绪浓厚。关注基建板块能否持续走强。',
+          '市场放量上涨，科技股领涨。但需警惕短线获利回吐。',
+          '外围不确定性增加，建议控制仓位，等待方向明确。',
+          '消费数据回暖，白酒和食品饮料板块有资金流入迹象。',
+          '指数突破关键压力位，量价配合良好，短期看好。',
+        ];
+        const reflections = [
+          '今天操作偏保守，错过了一些机会。下次应该更果断一些，但也不能盲目追涨。',
+          '按计划执行了止损，虽然小亏但避免了更大损失。纪律比情绪重要。',
+          '没有操作，保持耐心。市场不确定性大时，不操作就是最好的操作。',
+          '加仓了看好的标的，逻辑没变就继续持有。不被短期波动影响判断。',
+          '复盘发现之前的卖出时机有问题，以后要更耐心持有盈利仓位。',
+        ];
+        const lessons = [['耐心等待','纪律执行'], ['纪律执行','情绪控制'], ['耐心等待'], ['仓位合理','纪律执行'], ['情绪控制','耐心等待']];
+        this.addDiary({
+          date: dateStr,
+          mood: moods[i],
+          marketView: views[i],
+          reflections: reflections[i],
+          lessons: lessons[i],
+          operations: [],
+        });
+      }
+    }
+
+    // ===== 资讯收藏（5条） =====
+    if (this.getNews().length === 0) {
+      const newsItems = [
+        { title: '央行降准0.5个百分点 释放长期资金约1万亿元', url: 'https://www.example.com/news/1', source: '新华社', tags: ['宏观','利好'], summary: '人民银行决定降准，释放流动性，利好股市资金面', stockCodes: [] },
+        { title: '中联重科三季报：归母净利润同比增长25%', url: 'https://www.example.com/news/2', source: '证券时报', tags: ['个股','利好'], summary: '工程机械需求回暖，公司业绩超预期', stockCodes: ['000157'] },
+        { title: '新能源汽车补贴退坡30% 行业洗牌加速', url: 'https://www.example.com/news/3', source: '21世纪经济报道', tags: ['行业','利空'], summary: '补贴减少短期影响销量，长期利好龙头集中', stockCodes: ['002594'] },
+        { title: '半导体国产化率突破20% 设备订单大增', url: 'https://www.example.com/news/4', source: '电子时报', tags: ['行业','利好'], summary: '国产设备厂商订单饱满，行业景气度上行', stockCodes: [] },
+        { title: '美联储维持利率不变 预计年内还有一次降息', url: 'https://www.example.com/news/5', source: '华尔街见闻', tags: ['宏观'], summary: '海外流动性环境偏宽松，利好新兴市场', stockCodes: [] },
+      ];
+      newsItems.forEach((n, i) => {
+        const d = new Date(); d.setDate(d.getDate() - i);
+        n.publishedAt = d.toISOString();
+        this.addNews(n);
+      });
+    }
+
+    // ===== 研报（3份） =====
+    if (this.getReports().length === 0) {
+      this.addReport({ title: '中联重科深度报告：基建发力叠加海外拓展', source: '中信证券', stockCode: '000157', stockName: '中联重科', rating: '买入', targetPrice: 9.5, publishDate: '2026-06-20', keyPoints: '工程机械周期向上，海外收入占比提升，估值处于历史低位。预计2026-2028年净利润CAGR 15%。', myOpinion: '认同逻辑，但需关注地产开工数据' });
+      this.addReport({ title: '贵州茅台：短期承压 长期价值不变', source: '海通证券', stockCode: '600519', stockName: '贵州茅台', rating: '增持', targetPrice: 2100, publishDate: '2026-06-15', keyPoints: '批价稳定，渠道库存健康。短期消费疲弱，长期品牌护城河深厚。', myOpinion: '长期持有，不急于加仓' });
+      this.addReport({ title: '宁德时代：锂电价格战见顶 龙头受益', source: '中金公司', stockCode: '300750', stockName: '宁德时代', rating: '买入', targetPrice: 280, publishDate: '2026-06-10', keyPoints: '行业产能出清，龙头市占率提升。技术领先，成本优势明显。', myOpinion: '关注左侧机会，分批建仓' });
+    }
   },
 };
 
@@ -754,6 +892,9 @@ DB.exportAll = function() {
     snapshots: this.getSnapshots(),
     watchlist: this.getWatchlist(),
     alerts: this.getAlerts(),
+    diaries: this.getDiaries(),
+    news: this.getNews(),
+    reports: this.getReports(),
   }, null, 2);
 };
 
@@ -776,6 +917,9 @@ DB.importAll = function(jsonStr) {
     if (data.snapshots) this.setSnapshots(data.snapshots);
     if (data.watchlist) this.setWatchlist(data.watchlist);
     if (data.alerts) this.setAlerts(data.alerts);
+    if (data.diaries) this.setDiaries(data.diaries);
+    if (data.news) this.setNews(data.news);
+    if (data.reports) this.setReports(data.reports);
     return { success: true, counts: {
       articles: (data.articles || []).length,
       strategies: (data.strategies || []).length,
@@ -783,6 +927,9 @@ DB.importAll = function(jsonStr) {
       snapshots: (data.snapshots || []).length,
       watchlist: (data.watchlist || []).length,
       alerts: (data.alerts || []).length,
+      diaries: (data.diaries || []).length,
+      news: (data.news || []).length,
+      reports: (data.reports || []).length,
     }};
   } catch (e) {
     return { success: false, error: e.message };
