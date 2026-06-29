@@ -1,0 +1,17 @@
+{
+  "name": "stock-investment-hub-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sync server for 我的投资智库",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "tunnel": "node tunnel.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "localtunnel": "^2.0.2"
+  }
+}
