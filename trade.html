@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>交易复盘 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .trade-table-wrap { overflow-x: auto; }
+    .trade-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .trade-table th {
+      background: var(--primary);
+      color: #fff;
+      padding: 11px 14px;
+      text-align: left;
+      font-weight: 500;
+      white-space: nowrap;
+      font-size: 0.85rem;
+    }
+    .trade-table th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+    .trade-table th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+    .trade-table td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border-light);
+      vertical-align: middle;
+    }
+    .trade-table tr:hover td { background: #f8fafc; }
+    .trade-table .profit { font-weight: 600; }
+    .trade-table .profit.positive { color: var(--success); }
+    .trade-table .profit.negative { color: var(--danger); }
+    .trade-table .notes-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .trade-table .actions-cell { white-space: nowrap; display: flex; gap: 4px; }
+    .trade-table .actions-cell button {
+      background: none; border: none; cursor: pointer;
+      font-size: 0.85rem; padding: 3px 6px; border-radius: 3px;
+      color: var(--text-light); transition: all 0.15s;
+    }
+    .trade-table .actions-cell .edit:hover { color: var(--accent); background: var(--accent-light); }
+    .trade-table .actions-cell .del:hover { color: var(--danger); background: #ffebee; }
+
+    /* ---- Summary ---- */
+    .trade-summary {
+      display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap;
+    }
+    .trade-summary .item {
+      background: var(--card-bg); padding: 14px 20px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      flex: 1; min-width: 120px;
+    }
+    .trade-summary .item .lbl { font-size: 0.8rem; color: var(--text-light); }
+    .trade-summary .item .val { font-size: 1.2rem; font-weight: 700; margin-top: 4px; }
+    .trade-summary .item .val.green { color: var(--success); }
+    .trade-summary .item .val.red { color: var(--danger); }
+
+    /* ---- Analysis Panel ---- */
+    .analysis-panel {
+      margin-bottom: 20px;
+    }
+    .analysis-panel .panel-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 20px; cursor: pointer; user-select: none;
+    }
+    .analysis-panel .panel-header h3 { font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+    .analysis-panel .panel-header .toggle-icon { transition: transform 0.25s; font-size: 0.85rem; }
+    .analysis-panel .panel-header .toggle-icon.open { transform: rotate(180deg); }
+    .analysis-panel .panel-body { padding: 0 20px 20px; display: none; }
+    .analysis-panel .panel-body.show { display: block; }
+
+    .insight-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+    .insight-card {
+      background: var(--bg); border-radius: var(--radius-sm);
+      padding: 14px 16px; border: 1px solid var(--border);
+    }
+    .insight-card .i-label {
+      font-size: 0.78rem; color: var(--text-light); margin-bottom: 4px;
+    }
+    .insight-card .i-value { font-size: 0.95rem; font-weight: 500; }
+    .insight-card .i-value .highlight-good { color: var(--success); }
+    .insight-card .i-value .highlight-bad { color: var(--danger); }
+    .insight-card .i-value .highlight-warn { color: var(--warning); }
+
+    /* Suggestions */
+    .suggestions-list { list-style: none; margin-top: 6px; }
+    .suggestions-list li {
+      padding: 8px 14px; margin-bottom: 6px;
+      border-radius: var(--radius-sm);
+      font-size: 0.88rem; line-height: 1.6;
+      border-left: 3px solid var(--accent);
+      background: var(--accent-light);
+    }
+    .suggestions-list li.suggestion-good { border-left-color: var(--success); background: #e8f5e9; }
+    .suggestions-list li.suggestion-bad { border-left-color: var(--danger); background: #ffebee; }
+    .suggestions-list li.suggestion-warn { border-left-color: var(--warning); background: #fff8e1; }
+
+    /* AI Analysis Button Area */
+    .ai-analysis-area {
+      background: linear-gradient(135deg, var(--primary), var(--primary-light));
+      color: #fff; border-radius: var(--radius);
+      padding: 20px 24px; margin-bottom: 20px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px;
+    }
+    .ai-analysis-area .ai-text { flex: 1; }
+    .ai-analysis-area .ai-text h3 {
+      font-size: 1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px;
+    }
+    .ai-analysis-area .ai-text p { font-size: 0.85rem; opacity: 0.8; }
+    .ai-analysis-area .btn-ai {
+      background: #fff; color: var(--primary); border: none;
+      padding: 10px 24px; border-radius: var(--radius-sm);
+      font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: transform 0.15s;
+    }
+    .ai-analysis-area .btn-ai:hover { transform: scale(1.03); }
+    .ai-analysis-area .btn-ai:active { transform: scale(0.97); }
+
+    @media (max-width: 768px) {
+      .trade-table { font-size: 0.8rem; }
+      .trade-table th, .trade-table td { padding: 8px 10px; }
+      .trade-table .notes-cell { max-width: 100px; }
+      .ai-analysis-area { flex-direction: column; text-align: center; }
+      .insight-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .insight-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📊</div>
+      <span>我的投资智库</span>
+    </div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="trade.html" class="active">交易复盘</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>📈 交易复盘</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 新增交易记录</button>
+      </div>
+    </div>
+
+    <!-- ===== AI 深度分析入口 ===== -->
+    <div class="ai-analysis-area">
+      <div class="ai-text">
+        <h3>🤖 AI 深度分析</h3>
+        <p>一键导出交易数据至 AI 助手，获取个性化的交易诊断与优化建议</p>
+      </div>
+      <button class="btn-ai" onclick="requestAIAnalysis()">🚀 请求 AI 分析</button>
+    </div>
+
+    <!-- ===== Summary ===== -->
+    <div class="trade-summary" id="tradeSummary"></div>
+
+    <!-- ===== 智能分析面板（可折叠） ===== -->
+    <div class="card analysis-panel">
+      <div class="panel-header" onclick="toggleAnalysis()">
+        <h3>📊 智能交易分析</h3>
+        <span class="toggle-icon" id="analysisToggleIcon">▼</span>
+      </div>
+      <div class="panel-body" id="analysisBody">
+        <div class="insight-grid" id="insightGrid"></div>
+        <div id="suggestionArea"></div>
+      </div>
+    </div>
+
+    <!-- ===== Search ===== -->
+    <div class="filter-bar">
+      <input type="text" id="tradeSearch" placeholder="按股票名称搜索…" oninput="renderTrades()">
+    </div>
+
+    <!-- ===== Table ===== -->
+    <div class="card" style="padding:0;">
+      <div class="trade-table-wrap">
+        <table class="trade-table" id="tradeTable">
+          <thead>
+            <tr>
+              <th>股票名称</th>
+              <th>代码</th>
+              <th>买入日期</th>
+              <th>买入价格</th>
+              <th>股数</th>
+              <th>卖出日期</th>
+              <th>卖出价格</th>
+              <th>盈亏</th>
+              <th>盈亏率</th>
+              <th>复盘笔记</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="tradeBody"></tbody>
+        </table>
+      </div>
+      <div id="tradeEmpty" class="empty-state" style="display:none;">
+        <div class="icon">📈</div>
+        <p>暂无交易记录</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ===== Add / Edit Trade Modal ===== -->
+  <div class="modal-overlay" id="tradeModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 id="tradeModalTitle">新增交易记录</h3>
+        <button class="modal-close" onclick="closeModal('tradeModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>股票名称 *</label>
+            <input type="text" id="tradeStockName" placeholder="如：中联重科">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>股票代码</label>
+            <input type="text" id="tradeStockCode" placeholder="如：000157">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>买入日期 *</label>
+            <input type="date" id="tradeBuyDate">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>买入价格 *</label>
+            <input type="number" id="tradeBuyPrice" step="0.001" placeholder="7.640">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>股数 *</label>
+            <input type="number" id="tradeShares" step="1" placeholder="1000">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>卖出日期</label>
+            <input type="date" id="tradeSellDate">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>卖出价格</label>
+            <input type="number" id="tradeSellPrice" step="0.001" placeholder="留空表示持有中">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>盈亏（自动计算）</label>
+            <input type="text" id="tradeProfitPreview" disabled style="background:var(--bg);" value="待计算">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>复盘笔记</label>
+          <textarea id="tradeNotes" rows="3" placeholder="记录买入/卖出的原因和感悟…"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('tradeModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveTrade()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ===== 数据管理模态框 ===== -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💾 数据管理</h3>
+        <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="data-info">
+          <b>🌐 自动同步</b>：页面右下角有同步状态指示器，点击可配置同步服务器地址。<br>
+          <b>📁 手动传输</b>：如不使用同步服务器，可通过下方导出/导入迁移数据。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();">
+            <span class="btn-icon">⬇️</span><br>导出数据
+          </button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();">
+            <span class="btn-icon">⬆️</span><br>导入数据
+          </button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    let editingTradeId = null;
+    let analysisOpen = false;
+
+    // ---- 实时预览盈亏 ----
+    function previewProfit() {
+      const buyPrice = parseFloat(document.getElementById('tradeBuyPrice').value);
+      const sellPrice = parseFloat(document.getElementById('tradeSellPrice').value);
+      const shares = parseInt(document.getElementById('tradeShares').value);
+      const el = document.getElementById('tradeProfitPreview');
+      if (!buyPrice || !shares) { el.value = '待计算'; return; }
+      if (!sellPrice) { el.value = '（持有中）'; return; }
+      const profit = (sellPrice - buyPrice) * shares;
+      el.value = profit.toFixed(2) + ' 元';
+      el.style.color = profit >= 0 ? 'var(--success)' : 'var(--danger)';
+    }
+    document.getElementById('tradeBuyPrice').addEventListener('input', previewProfit);
+    document.getElementById('tradeSellPrice').addEventListener('input', previewProfit);
+    document.getElementById('tradeShares').addEventListener('input', previewProfit);
+
+    // ---- 分析面板折叠 ----
+    function toggleAnalysis() {
+      analysisOpen = !analysisOpen;
+      document.getElementById('analysisBody').classList.toggle('show', analysisOpen);
+      document.getElementById('analysisToggleIcon').classList.toggle('open', analysisOpen);
+    }
+    // 默认展开
+    toggleAnalysis();
+
+    // ---- 渲染 ----
+    function renderTrades() {
+      const keyword = document.getElementById('tradeSearch').value.trim().toLowerCase();
+      let list = DB.getTrades();
+      if (keyword) list = list.filter(t => t.stockName && t.stockName.toLowerCase().includes(keyword));
+
+      const tbody = document.getElementById('tradeBody');
+      const empty = document.getElementById('tradeEmpty');
+
+      renderSummary(list);
+      renderAnalysis(list);
+
+      if (list.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+      }
+      empty.style.display = 'none';
+
+      tbody.innerHTML = list.map(t => {
+        const profit = parseFloat(t.profit) || 0;
+        const profitClass = profit >= 0 ? 'positive' : 'negative';
+        const profitStr = profit >= 0 ? '+' + profit.toFixed(2) : profit.toFixed(2);
+        const isHolding = !t.sellPrice;
+        // 盈亏率
+        const cost = parseFloat(t.buyPrice) * parseInt(t.shares || 1);
+        const profitRate = cost > 0 && t.sellPrice ? ((profit / cost) * 100).toFixed(2) : '—';
+        const rateDisplay = isHolding ? '<span style="color:var(--text-light);font-size:0.82rem;">—</span>'
+          : `<span class="profit ${profitClass}">${profit >= 0 ? '+' : ''}${profitRate}%</span>`;
+        const sellDisplay = isHolding ? '<span style="color:var(--text-light);font-size:0.82rem;">持有中</span>' : (t.sellDate || '—');
+        const sellPriceDisplay = isHolding ? '<span style="color:var(--text-light);font-size:0.82rem;">—</span>' : fmtCurrency(t.sellPrice);
+        const profitDisplay = isHolding ? '<span style="color:var(--text-light);font-size:0.82rem;">—</span>'
+          : `<span class="profit ${profitClass}">${profitStr}</span>`;
+        return `<tr>
+          <td><strong>${t.stockName || '-'}</strong></td>
+          <td style="color:var(--text-light);font-size:0.82rem;">${t.stockCode || '-'}</td>
+          <td>${t.buyDate || '-'}</td>
+          <td>${fmtCurrency(t.buyPrice)}</td>
+          <td>${t.shares || 0}</td>
+          <td>${sellDisplay}</td>
+          <td>${sellPriceDisplay}</td>
+          <td>${profitDisplay}</td>
+          <td>${rateDisplay}</td>
+          <td class="notes-cell" title="${t.notes || ''}">${t.notes || '-'}</td>
+          <td class="actions-cell">
+            <button class="edit" onclick="editTrade('${t.id}')">✏️</button>
+            <button class="del" onclick="deleteTrade('${t.id}')">🗑️</button>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    // ---- 概览统计 ----
+    function renderSummary(list) {
+      const totalProfit = list.reduce((sum, t) => sum + (parseFloat(t.profit) || 0), 0);
+      const holdingCount = list.filter(t => !t.sellPrice).length;
+      const closedCount = list.filter(t => t.sellPrice).length;
+      const winCount = list.filter(t => t.sellPrice && parseFloat(t.profit) > 0).length;
+      const winRate = closedCount > 0 ? (winCount / closedCount * 100).toFixed(1) : '—';
+      const totalCost = list.reduce((sum, t) => sum + (parseFloat(t.buyPrice) || 0) * (parseInt(t.shares) || 0), 0);
+      const totalReturn = totalCost > 0 ? ((totalProfit / totalCost) * 100).toFixed(2) : '—';
+
+      document.getElementById('tradeSummary').innerHTML = `
+        <div class="item">
+          <div class="lbl">总盈亏</div>
+          <div class="val ${totalProfit >= 0 ? 'green' : 'red'}">${totalProfit >= 0 ? '+' : ''}${totalProfit.toFixed(2)}</div>
+        </div>
+        <div class="item">
+          <div class="lbl">总收益率</div>
+          <div class="val ${totalProfit >= 0 ? 'green' : 'red'}">${totalReturn !== '—' ? (totalProfit >= 0 ? '+' : '') + totalReturn + '%' : '—'}</div>
+        </div>
+        <div class="item">
+          <div class="lbl">胜率</div>
+          <div class="val green">${winRate}${winRate !== '—' ? '%' : ''}</div>
+        </div>
+        <div class="item">
+          <div class="lbl">持有中 / 已平仓</div>
+          <div class="val">${holdingCount} / ${closedCount}</div>
+        </div>
+      `;
+    }
+
+    // ---- 智能分析引擎 ----
+    function renderAnalysis(list) {
+      const grid = document.getElementById('insightGrid');
+      const suggestionArea = document.getElementById('suggestionArea');
+
+      if (list.length === 0) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📊</div><p>暂无交易数据可分析</p></div>';
+        suggestionArea.innerHTML = '';
+        return;
+      }
+
+      const closed = list.filter(t => t.sellPrice);
+      const holding = list.filter(t => !t.sellPrice);
+      const wins = closed.filter(t => parseFloat(t.profit) > 0);
+      const losses = closed.filter(t => parseFloat(t.profit) <= 0);
+
+      // 最赚钱 / 最亏钱交易
+      let bestTrade = null, worstTrade = null;
+      closed.forEach(t => {
+        const p = parseFloat(t.profit);
+        if (!bestTrade || p > parseFloat(bestTrade.profit)) bestTrade = t;
+        if (!worstTrade || p < parseFloat(worstTrade.profit)) worstTrade = t;
+      });
+
+      // 持仓天数统计
+      let totalHoldDays = 0, holdDaysCount = 0;
+      closed.forEach(t => {
+        if (t.buyDate && t.sellDate) {
+          const days = Math.round((new Date(t.sellDate) - new Date(t.buyDate)) / (24*60*60*1000));
+          totalHoldDays += days;
+          holdDaysCount++;
+        }
+      });
+      const avgHoldDays = holdDaysCount > 0 ? Math.round(totalHoldDays / holdDaysCount) : '—';
+
+      // 最常交易股票
+      const stockFreq = {};
+      list.forEach(t => { stockFreq[t.stockName] = (stockFreq[t.stockName] || 0) + 1; });
+      const mostTraded = Object.entries(stockFreq).sort((a, b) => b[1] - a[1])[0];
+
+      // Grid
+      grid.innerHTML = `
+        <div class="insight-card">
+          <div class="i-label">🏆 最赚钱交易</div>
+          <div class="i-value">
+            ${bestTrade
+              ? `${bestTrade.stockName} <span class="highlight-good">+${parseFloat(bestTrade.profit).toFixed(2)}</span>`
+              : '暂无已平仓交易'}
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="i-label">⚠️ 最亏钱交易</div>
+          <div class="i-value">
+            ${worstTrade
+              ? `${worstTrade.stockName} <span class="highlight-bad">${parseFloat(worstTrade.profit).toFixed(2)}</span>`
+              : '暂无已平仓交易'}
+          </div>
+        </div>
+        <div class="insight-card">
+          <div class="i-label">📊 平均持仓天数</div>
+          <div class="i-value">${avgHoldDays} 天</div>
+        </div>
+        <div class="insight-card">
+          <div class="i-label">🔄 最常交易股票</div>
+          <div class="i-value">${mostTraded ? `${mostTraded[0]}（${mostTraded[1]}次）` : '—'}</div>
+        </div>
+      `;
+
+      // ---- 智能建议（规则引擎） ----
+      const suggestions = [];
+
+      // 1. 胜率建议
+      const winRate = closed.length > 0 ? (wins.length / closed.length) : 0;
+      if (closed.length >= 2) {
+        if (winRate < 0.4) {
+          suggestions.push({
+            type: 'bad',
+            text: `当前胜率仅 ${(winRate * 100).toFixed(0)}%，低于 40%。建议减少交易频率，只在确定性较高的机会出手，或者缩小止损幅度。`
+          });
+        } else if (winRate > 0.7) {
+          suggestions.push({
+            type: 'good',
+            text: `胜率达 ${(winRate * 100).toFixed(0)}%，表现不错！但注意检查是否"小赚大亏"——即胜率高但总收益不佳的情况。`
+          });
+        }
+      }
+
+      // 2. 总盈亏建议
+      const totalProfit = list.reduce((sum, t) => sum + (parseFloat(t.profit) || 0), 0);
+      if (totalProfit < 0 && closed.length > 0) {
+        suggestions.push({
+          type: 'bad',
+          text: `当前总亏损 ${totalProfit.toFixed(2)} 元。建议暂停新开仓，先复盘亏损交易中是否存在共性错误（如追高、不止损、仓位过重）。`
+        });
+      }
+
+      // 3. 持有中建议
+      if (holding.length > 0) {
+        suggestions.push({
+          type: 'warn',
+          text: `有 ${holding.length} 笔持仓未平仓。建议定期检查每笔持仓的止损/止盈位是否合理，避免"浮盈变亏损"。`
+        });
+      }
+
+      // 4. 平均持仓建议
+      if (avgHoldDays !== '—' && avgHoldDays < 5 && closed.length >= 3) {
+        suggestions.push({
+          type: 'warn',
+          text: `平均持仓仅 ${avgHoldDays} 天，偏短线交易。短线交易对择时和纪律要求很高，建议记录每笔买入和卖出的具体理由，定期复盘。`
+        });
+      } else if (avgHoldDays !== '—' && avgHoldDays > 90 && closed.length >= 2) {
+        suggestions.push({
+          type: 'good',
+          text: `平均持仓 ${avgHoldDays} 天，偏中长线风格。长线持有可以减少交易成本，但需确保持有的逻辑依然成立。`
+        });
+      }
+
+      // 5. 亏损幅度建议
+      const bigLosses = losses.filter(t => parseFloat(t.profit) < -500);
+      if (bigLosses.length >= 2) {
+        suggestions.push({
+          type: 'bad',
+          text: `有 ${bigLosses.length} 笔亏损超过 500 元的大额亏损。需反思是否有及时止损的习惯，建议设定硬性止损线（如 -8%）。`
+        });
+      }
+
+      // 6. 最常交易股票表现
+      if (mostTraded) {
+        const sameStock = list.filter(t => t.stockName === mostTraded[0]);
+        const stockPnl = sameStock.reduce((s, t) => s + (parseFloat(t.profit) || 0), 0);
+        const stockClosed = sameStock.filter(t => t.sellPrice);
+        if (stockClosed.length >= 2 && stockPnl < -200) {
+          suggestions.push({
+            type: 'bad',
+            text: `${mostTraded[0]} 交易了 ${mostTraded[1]} 次，总亏损 ${stockPnl.toFixed(2)} 元。这支股票可能需要重新评估买入逻辑。`
+          });
+        }
+      }
+
+      // 7. 盈利/亏损比
+      if (wins.length > 0 && losses.length > 0) {
+        const avgWin = wins.reduce((s, t) => s + parseFloat(t.profit), 0) / wins.length;
+        const avgLoss = Math.abs(losses.reduce((s, t) => s + parseFloat(t.profit), 0) / losses.length);
+        if (avgLoss > 0 && avgWin / avgLoss < 1.5) {
+          suggestions.push({
+            type: 'warn',
+            text: `平均盈利 (${avgWin.toFixed(0)}) 是平均亏损 (${avgLoss.toFixed(0)}) 的 ${(avgWin/avgLoss).toFixed(1)} 倍，低于 1.5 倍的建议水平。说明"赚的时候赚得少，亏的时候亏得多"，这是很多交易者亏损的核心原因。`
+          });
+        } else if (avgLoss > 0 && avgWin / avgLoss >= 2) {
+          suggestions.push({
+            type: 'good',
+            text: `平均盈利是平均亏损的 ${(avgWin/avgLoss).toFixed(1)} 倍，"截断亏损、让利润奔跑"的原则执行得不错！`
+          });
+        }
+      }
+
+      // 8. 数据量太少
+      if (closed.length < 3) {
+        suggestions.push({
+          type: 'warn',
+          text: `目前仅 ${closed.length} 笔已平仓交易，样本量偏少。建议继续记录更多交易后再做系统性分析，统计规律需要足够的样本才有意义。`
+        });
+      }
+
+      // 9. 总收益率
+      const totalCost = list.reduce((sum, t) => sum + (parseFloat(t.buyPrice) || 0) * (parseInt(t.shares) || 0), 0);
+      if (totalCost > 0 && closed.length >= 3) {
+        const returnRate = totalProfit / totalCost;
+        if (returnRate > 0.15) {
+          suggestions.push({
+            type: 'good',
+            text: `总投资收益率 ${(returnRate * 100).toFixed(1)}%，表现优秀！注意保护已有收益。`
+          });
+        }
+      }
+
+      // 渲染建议
+      if (suggestions.length === 0) {
+        suggestionArea.innerHTML = '<p style="color:var(--text-light);font-size:0.9rem;text-align:center;">继续记录交易，积累更多数据后将生成更有价值的分析建议 📈</p>';
+      } else {
+        const typeNames = { good: '✅ 保持', bad: '⚠️ 注意', warn: '💡 建议' };
+        suggestionArea.innerHTML = `
+          <h4 style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px;">💬 交易行为分析与建议</h4>
+          <ul class="suggestions-list">
+            ${suggestions.map(s => `<li class="suggestion-${s.type}"><strong>${typeNames[s.type]}</strong>：${s.text}</li>`).join('')}
+          </ul>
+        `;
+      }
+    }
+
+    // ---- AI 深度分析 ----
+    function requestAIAnalysis() {
+      const list = DB.getTrades();
+      if (list.length === 0) {
+        showToast('暂无交易记录可分析，请先添加交易数据');
+        return;
+      }
+
+      // 生成交易数据文本
+      let text = '【交易数据分析请求】\n\n';
+      text += `共 ${list.length} 笔交易记录：\n\n`;
+
+      list.forEach((t, i) => {
+        const profit = parseFloat(t.profit) || 0;
+        const isHolding = !t.sellPrice;
+        const cost = (parseFloat(t.buyPrice) || 0) * (parseInt(t.shares) || 0);
+        const rate = cost > 0 && t.sellPrice ? ((profit / cost) * 100).toFixed(2) + '%' : '—';
+        text += `【${i + 1}】${t.stockName}（${t.stockCode || '—'}）\n`;
+        text += `  买入：${t.buyDate} @ ${parseFloat(t.buyPrice).toFixed(3)} × ${t.shares}股\n`;
+        text += `  卖出：${isHolding ? '持有中' : t.sellDate + ' @ ' + parseFloat(t.sellPrice).toFixed(3)}\n`;
+        text += `  盈亏：${isHolding ? '持有中' : (profit >= 0 ? '+' : '') + profit.toFixed(2) + '元（' + rate + '）'}\n`;
+        text += `  笔记：${t.notes || '（无）'}\n\n`;
+      });
+
+      text += '请帮我分析以上交易记录，给出个性化的建议。\n';
+      text += '包括但不限于：交易风格判断、常见问题诊断、优化建议、具体的改进方向。';
+
+      // 复制到剪贴板
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('✅ 交易数据已复制，请粘贴到 AI 对话中进行分析');
+      }).catch(() => {
+        // fallback: 显示在 textarea 中让用户手动复制
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('✅ 交易数据已复制到剪贴板');
+      });
+    }
+
+    // ---- 新增 / 编辑 ----
+    function openAddModal() {
+      editingTradeId = null;
+      document.getElementById('tradeModalTitle').textContent = '新增交易记录';
+      ['tradeStockName','tradeStockCode','tradeBuyPrice','tradeShares','tradeSellPrice','tradeNotes'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      document.getElementById('tradeBuyDate').value = '';
+      document.getElementById('tradeSellDate').value = '';
+      document.getElementById('tradeProfitPreview').value = '待计算';
+      document.getElementById('tradeProfitPreview').style.color = '';
+      openModal('tradeModal');
+      setTimeout(() => document.getElementById('tradeStockName').focus(), 100);
+    }
+
+    function editTrade(id) {
+      const list = DB.getTrades();
+      const t = list.find(item => item.id === id);
+      if (!t) return;
+      editingTradeId = id;
+      document.getElementById('tradeModalTitle').textContent = '编辑交易记录';
+      document.getElementById('tradeStockName').value = t.stockName || '';
+      document.getElementById('tradeStockCode').value = t.stockCode || '';
+      document.getElementById('tradeBuyDate').value = t.buyDate || '';
+      document.getElementById('tradeBuyPrice').value = t.buyPrice || '';
+      document.getElementById('tradeShares').value = t.shares || '';
+      document.getElementById('tradeSellDate').value = t.sellDate || '';
+      document.getElementById('tradeSellPrice').value = t.sellPrice || '';
+      document.getElementById('tradeNotes').value = t.notes || '';
+      previewProfit();
+      openModal('tradeModal');
+    }
+
+    function saveTrade() {
+      const stockName = document.getElementById('tradeStockName').value.trim();
+      const stockCode = document.getElementById('tradeStockCode').value.trim();
+      const buyDate = document.getElementById('tradeBuyDate').value;
+      const buyPrice = document.getElementById('tradeBuyPrice').value;
+      const shares = document.getElementById('tradeShares').value;
+      const sellDate = document.getElementById('tradeSellDate').value;
+      const sellPrice = document.getElementById('tradeSellPrice').value;
+      const notes = document.getElementById('tradeNotes').value.trim();
+
+      if (!stockName) { showToast('请输入股票名称'); return; }
+      if (!buyDate) { showToast('请选择买入日期'); return; }
+      if (!buyPrice) { showToast('请输入买入价格'); return; }
+      if (!shares || parseInt(shares) <= 0) { showToast('请输入有效的股数'); return; }
+
+      const data = {
+        stockName, stockCode, buyDate,
+        buyPrice: parseFloat(buyPrice),
+        shares: parseInt(shares),
+        sellDate: sellDate || '',
+        sellPrice: sellPrice ? parseFloat(sellPrice) : '',
+        notes,
+      };
+
+      if (editingTradeId) {
+        DB.updateTrade(editingTradeId, data);
+        showToast('交易记录已更新');
+      } else {
+        DB.addTrade(data);
+        showToast('交易记录已添加');
+      }
+      closeModal('tradeModal');
+      renderTrades();
+    }
+
+    function deleteTrade(id) {
+      if (!confirm('确定要删除这条交易记录吗？')) return;
+      DB.deleteTrade(id);
+      renderTrades();
+      showToast('交易记录已删除');
+    }
+
+    // ---- 初始化示例数据（增加更多交易记录以便分析） ----
+    function initSampleTradeData() {
+      if (DB.getTrades().length > 1) return; // 已有数据则不覆盖
+      DB.addTrade({
+        stockName: '中联重科', stockCode: '000157',
+        buyDate: '2025-11-15', buyPrice: 7.64, shares: 1000,
+        sellDate: '', sellPrice: '',
+        notes: '工程机械龙头，低估值，计划长期持有',
+      });
+      DB.addTrade({
+        stockName: '贵州茅台', stockCode: '600519',
+        buyDate: '2025-09-10', buyPrice: 1850, shares: 100,
+        sellDate: '2025-12-05', sellPrice: 1920,
+        notes: '国庆消费旺季预期，短线获利了结',
+      });
+      DB.addTrade({
+        stockName: '宁德时代', stockCode: '300750',
+        buyDate: '2025-10-20', buyPrice: 245, shares: 200,
+        sellDate: '2025-11-28', sellPrice: 232,
+        notes: '锂电价格战超预期，止损出局',
+      });
+      DB.addTrade({
+        stockName: '科大讯飞', stockCode: '002230',
+        buyDate: '2025-11-01', buyPrice: 48.5, shares: 500,
+        sellDate: '2026-01-10', sellPrice: 55.2,
+        notes: 'AI概念行情启动，顺势加仓后获利',
+      });
+      DB.addTrade({
+        stockName: '腾讯控股', stockCode: '00700',
+        buyDate: '2025-08-15', buyPrice: 380, shares: 200,
+        sellDate: '2025-10-08', sellPrice: 365,
+        notes: '反弹回补缺口失败，小亏止损',
+      });
+      DB.addTrade({
+        stockName: '比亚迪', stockCode: '002594',
+        buyDate: '2025-07-01', buyPrice: 268, shares: 150,
+        sellDate: '2025-09-15', sellPrice: 310,
+        notes: '新能源车销量超预期，中线持有获利',
+      });
+    }
+
+    // ---- 初始化 ----
+    initSampleTradeData();
+    renderTrades();
+  </script>
+</body>
+</html>
