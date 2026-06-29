@@ -58,6 +58,9 @@
       <a href="portfolio.html">持仓管理</a>
       <a href="watchlist.html" class="active">自选股</a>
       <a href="trade.html">交易复盘</a>
+      <a href="diary.html">日记</a>
+      <a href="news.html">资讯</a>
+      <a href="risk.html">风控</a>
     </nav>
     <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
   </header>
@@ -117,11 +120,27 @@
           </div>
         </div>
         <div class="form-group" style="margin-top:12px;">
+          <label>投资逻辑（一句话概括）</label>
+          <input type="text" id="watchThesis" placeholder="如：低估值龙头，基建复苏受益">
+        </div>
+        <div class="form-group">
           <label>备注</label>
           <textarea id="watchNotes" rows="2" placeholder="投资逻辑或关注理由..."></textarea>
         </div>
-        <div class="form-group">
-          <label><input type="checkbox" id="watchAlert" checked> 启用价格提醒</label>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group">
+            <label>长期看好度评级</label>
+            <div id="watchRatingStars" style="display:flex;gap:4px;padding:8px 0;">
+              <span data-r="1" style="cursor:pointer;font-size:1.3rem;" onclick="setWatchRating(1)">☆</span>
+              <span data-r="2" style="cursor:pointer;font-size:1.3rem;" onclick="setWatchRating(2)">☆</span>
+              <span data-r="3" style="cursor:pointer;font-size:1.3rem;" onclick="setWatchRating(3)">☆</span>
+              <span data-r="4" style="cursor:pointer;font-size:1.3rem;" onclick="setWatchRating(4)">☆</span>
+              <span data-r="5" style="cursor:pointer;font-size:1.3rem;" onclick="setWatchRating(5)">☆</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label><input type="checkbox" id="watchAlert" checked> 启用价格提醒</label>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -171,6 +190,16 @@
     let currentGroup = '全部';
     let editingWatchId = null;
     let priceCache = {};
+    let selectedWatchRating = 0;
+
+    function setWatchRating(r) {
+      selectedWatchRating = r;
+      document.querySelectorAll('#watchRatingStars span').forEach(s => {
+        const v = parseInt(s.dataset.r);
+        s.textContent = v <= r ? '⭐' : '☆';
+        s.style.opacity = v <= r ? '1' : '0.5';
+      });
+    }
 
     const GROUPS = ['全部', '核心关注', '短线观察', '长线跟踪'];
 
@@ -257,8 +286,9 @@
           ${hasAlert ? '<div class="alert-badge">🔔</div>' : ''}
           <div class="wc-header">
             <div>
-              <div class="wc-name">${w.stockName||'-'}</div>
+              <div class="wc-name">${w.stockName||'-'} ${w.rating ? '<span style="font-size:0.8rem;">'+'⭐'.repeat(w.rating)+'</span>' : ''}</div>
               <div class="wc-code">${w.stockCode||'-'}</div>
+              ${w.thesis ? `<div style="font-size:0.75rem;color:var(--accent);margin-top:2px;">💡 ${w.thesis}</div>` : ''}
             </div>
             <div class="wc-price">
               <div class="p">¥${currentPrice.toFixed(2)}</div>
@@ -306,9 +336,11 @@
     function openAddModal() {
       editingWatchId = null;
       document.getElementById('watchModalTitle').textContent = '添加自选股';
-      ['watchStockName','watchStockCode','watchAddPrice','watchTargetPrice','watchStopLoss','watchNotes'].forEach(id => document.getElementById(id).value = '');
+      ['watchStockName','watchStockCode','watchAddPrice','watchTargetPrice','watchStopLoss','watchNotes','watchThesis'].forEach(id => document.getElementById(id).value = '');
       document.getElementById('watchGroup').value = '核心关注';
       document.getElementById('watchAlert').checked = true;
+      selectedWatchRating = 0;
+      setWatchRating(0);
       openModal('watchModal');
       // 请求通知权限
       if ('Notification' in window && Notification.permission === 'default') {
@@ -328,7 +360,10 @@
       document.getElementById('watchTargetPrice').value = w.targetPrice || '';
       document.getElementById('watchStopLoss').value = w.stopLossPrice || '';
       document.getElementById('watchNotes').value = w.notes || '';
+      document.getElementById('watchThesis').value = w.thesis || '';
       document.getElementById('watchAlert').checked = w.alertEnabled !== false;
+      selectedWatchRating = w.rating || 0;
+      setWatchRating(selectedWatchRating);
       openModal('watchModal');
     }
 
@@ -342,8 +377,11 @@
         addPrice: parseFloat(document.getElementById('watchAddPrice').value) || 0,
         targetPrice: parseFloat(document.getElementById('watchTargetPrice').value) || 0,
         stopLossPrice: parseFloat(document.getElementById('watchStopLoss').value) || 0,
+        thesis: document.getElementById('watchThesis').value.trim(),
         notes: document.getElementById('watchNotes').value.trim(),
         alertEnabled: document.getElementById('watchAlert').checked,
+        rating: selectedWatchRating,
+        lastReviewDate: new Date().toISOString().slice(0, 10),
       };
       if (editingWatchId) {
         DB.updateWatch(editingWatchId, data);
