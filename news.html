@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>资讯研报 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid var(--border); }
+    .tab-item { padding: 10px 24px; cursor: pointer; font-size: 0.92rem; color: var(--text-secondary); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-item.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: 600; }
+    .news-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
+    .news-item:hover { background: #f8fafc; }
+    .news-item.unread { background: #e3f2fd; }
+    .news-item .n-info { flex: 1; min-width: 0; }
+    .news-item .n-title { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .news-item .n-meta { font-size: 0.78rem; color: var(--text-light); margin-top: 3px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .news-item .n-tag { padding: 1px 8px; border-radius: 8px; font-size: 0.72rem; }
+    .news-item .n-tag.利好 { background: #e8f5e9; color: #2e7d32; }
+    .news-item .n-tag.利空 { background: #ffebee; color: #c62828; }
+    .news-item .n-tag.宏观 { background: #e3f2fd; color: #1565c0; }
+    .news-item .n-tag.行业 { background: #f3e5f5; color: #7b1fa2; }
+    .news-item .n-tag.个股 { background: #fff8e1; color: #f57c00; }
+    .news-item .n-actions { display: flex; gap: 4px; margin-left: 10px; }
+    .news-item .n-actions button { background: none; border: none; cursor: pointer; font-size: 0.82rem; color: var(--text-light); padding: 4px 6px; border-radius: 3px; }
+    .news-item .n-actions button:hover { color: var(--accent); background: var(--accent-light); }
+    .report-item { padding: 14px 18px; border-bottom: 1px solid var(--border-light); }
+    .report-item:hover { background: #f8fafc; }
+    .report-item .r-title { font-weight: 500; font-size: 0.92rem; }
+    .report-item .r-meta { font-size: 0.78rem; color: var(--text-light); margin-top: 4px; }
+    .report-item .r-rating { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 500; }
+    .report-item .r-rating.买入 { background: #e8f5e9; color: #2e7d32; }
+    .report-item .r-rating.增持 { background: #e3f2fd; color: #1565c0; }
+    .report-item .r-rating.中性 { background: #f5f5f5; color: #666; }
+    .report-item .r-rating.减持 { background: #ffebee; color: #c62828; }
+    .report-item .r-keypoints { font-size: 0.85rem; color: var(--text-secondary); margin-top: 6px; line-height: 1.6; }
+    .report-item .r-opinion { font-size: 0.82rem; color: var(--accent); margin-top: 6px; padding: 6px 10px; background: var(--accent-light); border-radius: var(--radius-sm); }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo"><div class="icon">📊</div><span>我的投资智库</span></div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav" id="mainNav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="portfolio.html">持仓管理</a>
+      <a href="watchlist.html">自选股</a>
+      <a href="trade.html">交易复盘</a>
+      <a href="diary.html">日记</a>
+      <a href="news.html" class="active">资讯</a>
+      <a href="risk.html">风控</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>📰 资讯研报</h2>
+      <div class="actions">
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 添加资讯</button>
+        <button class="btn btn-outline" onclick="openReportModal()">＋ 添加研报</button>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <div class="tab-item active" onclick="switchTab('news')">📰 资讯收藏</div>
+      <div class="tab-item" onclick="switchTab('reports')">📄 研报关联</div>
+    </div>
+
+    <div class="filter-bar" id="newsFilterBar">
+      <select id="newsTagFilter" onchange="renderNews()">
+        <option value="">全部标签</option>
+        <option value="利好">利好</option>
+        <option value="利空">利空</option>
+        <option value="宏观">宏观</option>
+        <option value="行业">行业</option>
+        <option value="个股">个股</option>
+      </select>
+      <select id="newsReadFilter" onchange="renderNews()">
+        <option value="">全部状态</option>
+        <option value="unread">未读</option>
+        <option value="read">已读</option>
+      </select>
+    </div>
+
+    <div class="card" id="listCard" style="padding:0;"></div>
+  </main>
+
+  <!-- 添加资讯 -->
+  <div class="modal-overlay" id="newsModal">
+    <div class="modal" style="max-width:540px;">
+      <div class="modal-header"><h3>添加资讯</h3><button class="modal-close" onclick="closeModal('newsModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>标题 *</label><input type="text" id="newsTitle" placeholder="资讯标题"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:0;"><label>来源</label><input type="text" id="newsSource" placeholder="如：新华社"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>发布日期</label><input type="date" id="newsDate"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px;"><label>链接</label><input type="url" id="newsUrl" placeholder="https://..."></div>
+        <div class="form-group"><label>关联股票（逗号分隔代码）</label><input type="text" id="newsStocks" placeholder="如：000157,600519"></div>
+        <div class="form-group"><label>要点摘要</label><textarea id="newsSummary" rows="3" placeholder="一句话概括核心内容..."></textarea></div>
+        <div class="form-group"><label>标签</label><div id="newsTagsSelector"></div></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('newsModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveNews()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 添加研报 -->
+  <div class="modal-overlay" id="reportModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header"><h3>添加研报</h3><button class="modal-close" onclick="closeModal('reportModal')">✕</button></div>
+      <div class="modal-body">
+        <div class="form-group"><label>研报标题 *</label><input type="text" id="reportTitle" placeholder="如：中联重科深度报告"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:0;"><label>机构</label><input type="text" id="reportSource" placeholder="如：中信证券"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>发布日期</label><input type="date" id="reportDate"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div class="form-group" style="margin-bottom:0;"><label>股票名称</label><input type="text" id="reportStockName" placeholder="中联重科"></div>
+          <div class="form-group" style="margin-bottom:0;"><label>股票代码</label><input type="text" id="reportStockCode" placeholder="000157"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div class="form-group" style="margin-bottom:0;"><label>评级</label><select id="reportRating"><option>买入</option><option>增持</option><option>中性</option><option>减持</option></select></div>
+          <div class="form-group" style="margin-bottom:0;"><label>目标价</label><input type="number" step="0.01" id="reportTarget" placeholder="9.5"></div>
+        </div>
+        <div class="form-group" style="margin-top:12px;"><label>核心观点</label><textarea id="reportKeyPoints" rows="3" placeholder="研报的核心逻辑..."></textarea></div>
+        <div class="form-group"><label>我的看法</label><textarea id="reportOpinion" rows="2" placeholder="是否认同？理由..."></textarea></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('reportModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveReport()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 数据管理 -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header"><h3>💾 数据管理</h3><button class="modal-close" onclick="closeModal('dataModal')">✕</button></div>
+      <div class="modal-body">
+        <p class="data-info"><b>🌐 自动同步</b>：页面右下角点同步按钮，输入 GitHub Token 即可开启跨设备云同步。<br><b>📁 手动传输</b>：也可通过下方导出/导入在设备间迁移数据。</p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();"><span class="btn-icon">⬇️</span><br>导出数据</button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();"><span class="btn-icon">⬆️</span><br>导入数据</button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="js/app.js"></script>
+  <script>
+    let currentTab = 'news';
+    let selectedNewsTags = [];
+    const NEWS_TAGS = ['利好','利空','宏观','行业','个股'];
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('newsFilterBar').style.display = tab === 'news' ? 'flex' : 'none';
+      renderList();
+    }
+
+    function renderNewsTagsSelector() {
+      document.getElementById('newsTagsSelector').innerHTML = NEWS_TAGS.map(t => {
+        const sel = selectedNewsTags.includes(t);
+        const colors = {'利好':'#e8f5e9,#2e7d32','利空':'#ffebee,#c62828','宏观':'#e3f2fd,#1565c0','行业':'#f3e5f5,#7b1fa2','个股':'#fff8e1,#f57c00'};
+        const [bg, color] = colors[t].split(',');
+        return `<span class="n-tag ${t}" onclick="toggleNewsTag('${t}')" style="cursor:pointer;background:${sel?color:bg};color:${sel?'#fff':color};border:1px solid ${color};">${t}</span>`;
+      }).join('');
+    }
+    function toggleNewsTag(t) {
+      const i = selectedNewsTags.indexOf(t);
+      if (i >= 0) selectedNewsTags.splice(i, 1); else selectedNewsTags.push(t);
+      renderNewsTagsSelector();
+    }
+
+    function renderList() {
+      if (currentTab === 'news') renderNews();
+      else renderReports();
+    }
+
+    function renderNews() {
+      const tagFilter = document.getElementById('newsTagFilter').value;
+      const readFilter = document.getElementById('newsReadFilter').value;
+      let list = DB.getNews();
+      if (tagFilter) list = list.filter(n => (n.tags || []).includes(tagFilter));
+      if (readFilter === 'unread') list = list.filter(n => !n.read);
+      if (readFilter === 'read') list = list.filter(n => n.read);
+
+      const card = document.getElementById('listCard');
+      if (!list.length) {
+        card.innerHTML = '<div class="empty-state"><div class="icon">📰</div><p>暂无资讯</p></div>';
+        return;
+      }
+      card.innerHTML = '<div>' + list.map(n => `
+        <div class="news-item ${!n.read?'unread':''}">
+          <div class="n-info">
+            ${n.url ? `<a href="${n.url}" target="_blank" style="color:var(--text);text-decoration:none;" onclick="markRead('${n.id}')"><div class="n-title">${n.title}</div></a>` : `<div class="n-title">${n.title}</div>`}
+            <div class="n-meta">
+              <span>${n.source||'-'}</span>
+              <span>${n.publishedAt ? new Date(n.publishedAt).toLocaleDateString('zh-CN') : '-'}</span>
+              ${(n.tags||[]).map(t => `<span class="n-tag ${t}">${t}</span>`).join('')}
+              ${n.stockCodes?.length ? `<span>🔗 ${n.stockCodes.join(',')}</span>` : ''}
+              ${n.summary ? `<span style="color:var(--text-secondary);">— ${n.summary}</span>` : ''}
+            </div>
+          </div>
+          <div class="n-actions">
+            <button onclick="markRead('${n.id}')" title="标记已读">${n.read?'🔲':'✅'}</button>
+            <button onclick="deleteNews('${n.id}')" title="删除">🗑️</button>
+          </div>
+        </div>
+      `).join('') + '</div>';
+    }
+
+    function renderReports() {
+      const list = DB.getReports();
+      const card = document.getElementById('listCard');
+      if (!list.length) {
+        card.innerHTML = '<div class="empty-state"><div class="icon">📄</div><p>暂无研报</p></div>';
+        return;
+      }
+      card.innerHTML = '<div>' + list.map(r => `
+        <div class="report-item">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div class="r-title">${r.title}</div>
+            <div>
+              <span class="r-rating ${r.rating||''}">${r.rating||'-'}</span>
+              ${r.targetPrice ? `<span style="font-size:0.82rem;color:var(--accent);margin-left:8px;">目标价 ¥${r.targetPrice}</span>` : ''}
+            </div>
+          </div>
+          <div class="r-meta">${r.source||'-' } | ${r.stockName||'-'}（${r.stockCode||'-'}）| ${r.publishDate||'-'}</div>
+          ${r.keyPoints ? `<div class="r-keypoints">${r.keyPoints}</div>` : ''}
+          ${r.myOpinion ? `<div class="r-opinion">💡 我的看法：${r.myOpinion}</div>` : ''}
+          <div style="margin-top:8px;"><button class="btn btn-sm btn-outline" onclick="deleteReport('${r.id}')">🗑️ 删除</button></div>
+        </div>
+      `).join('') + '</div>';
+    }
+
+    function openAddModal() {
+      ['newsTitle','newsSource','newsUrl','newsStocks','newsSummary'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('newsDate').value = new Date().toISOString().slice(0, 10);
+      selectedNewsTags = [];
+      renderNewsTagsSelector();
+      openModal('newsModal');
+    }
+
+    function saveNews() {
+      const title = document.getElementById('newsTitle').value.trim();
+      if (!title) { showToast('请输入标题'); return; }
+      DB.addNews({
+        title,
+        source: document.getElementById('newsSource').value.trim(),
+        url: document.getElementById('newsUrl').value.trim(),
+        publishedAt: document.getElementById('newsDate').value ? new Date(document.getElementById('newsDate').value).toISOString() : '',
+        stockCodes: document.getElementById('newsStocks').value.split(',').map(s => s.trim()).filter(Boolean),
+        summary: document.getElementById('newsSummary').value.trim(),
+        tags: [...selectedNewsTags],
+      });
+      closeModal('newsModal');
+      renderNews();
+      showToast('资讯已添加');
+    }
+
+    function markRead(id) {
+      const n = DB.getNews().find(x => x.id === id);
+      if (n) { DB.updateNews(id, { read: !n.read }); renderNews(); }
+    }
+
+    function deleteNews(id) {
+      if (!confirm('确定删除？')) return;
+      DB.deleteNews(id); renderNews(); showToast('已删除');
+    }
+
+    function openReportModal() {
+      ['reportTitle','reportSource','reportStockName','reportStockCode','reportTarget','reportKeyPoints','reportOpinion'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('reportDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('reportRating').value = '买入';
+      openModal('reportModal');
+    }
+
+    function saveReport() {
+      const title = document.getElementById('reportTitle').value.trim();
+      if (!title) { showToast('请输入标题'); return; }
+      DB.addReport({
+        title,
+        source: document.getElementById('reportSource').value.trim(),
+        stockName: document.getElementById('reportStockName').value.trim(),
+        stockCode: document.getElementById('reportStockCode').value.trim(),
+        rating: document.getElementById('reportRating').value,
+        targetPrice: parseFloat(document.getElementById('reportTarget').value) || 0,
+        publishDate: document.getElementById('reportDate').value,
+        keyPoints: document.getElementById('reportKeyPoints').value.trim(),
+        myOpinion: document.getElementById('reportOpinion').value.trim(),
+      });
+      closeModal('reportModal');
+      renderReports();
+      showToast('研报已添加');
+    }
+
+    function deleteReport(id) {
+      if (!confirm('确定删除？')) return;
+      DB.deleteReport(id); renderReports(); showToast('已删除');
+    }
+
+    DB.initSampleData();
+    renderList();
+  </script>
+</body>
+</html>
