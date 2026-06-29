@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>投资日记 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .diary-layout { display: grid; grid-template-columns: 200px 1fr; gap: 20px; }
+    .diary-sidebar { position: sticky; top: 80px; }
+    .diary-list-item { padding: 12px; border-radius: var(--radius-sm); cursor: pointer; margin-bottom: 6px; border: 1px solid var(--border); transition: all 0.15s; }
+    .diary-list-item:hover { background: var(--accent-light); }
+    .diary-list-item.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .diary-list-item .d-date { font-weight: 600; font-size: 0.88rem; }
+    .diary-list-item .d-mood { font-size: 1.2rem; }
+    .diary-list-item .d-preview { font-size: 0.78rem; opacity: 0.8; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .mood-selector { display: flex; gap: 8px; }
+    .mood-selector span { font-size: 2rem; cursor: pointer; opacity: 0.5; transition: all 0.15s; }
+    .mood-selector span:hover, .mood-selector span.selected { opacity: 1; transform: scale(1.15); }
+    .lesson-tag { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; margin: 2px; cursor: pointer; background: #f0f2f5; color: var(--text-secondary); }
+    .lesson-tag.selected { background: var(--accent); color: #fff; }
+    .ops-auto { background: var(--bg); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 8px; font-size: 0.85rem; }
+    .ops-auto .op-row { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px dashed var(--border-light); }
+    .ops-auto .op-row:last-child { border: none; }
+    .report-card { background: linear-gradient(135deg, var(--primary), var(--primary-light)); color: #fff; border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
+    .report-card h3 { margin-bottom: 10px; }
+    .report-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-top: 12px; }
+    .report-grid .item { background: rgba(255,255,255,0.1); padding: 10px 14px; border-radius: var(--radius-sm); }
+    .report-grid .item .lbl { font-size: 0.78rem; opacity: 0.7; }
+    .report-grid .item .val { font-size: 1.1rem; font-weight: 700; margin-top: 3px; }
+    @media (max-width: 768px) { .diary-layout { grid-template-columns: 1fr; } .diary-sidebar { position: static; } }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo"><div class="icon">📊</div><span>我的投资智库</span></div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav" id="mainNav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="portfolio.html">持仓管理</a>
+      <a href="watchlist.html">自选股</a>
+      <a href="trade.html">交易复盘</a>
+      <a href="diary.html" class="active">日记</a>
+      <a href="news.html">资讯</a>
+      <a href="risk.html">风控</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>📔 投资日记</h2>
+      <div class="actions">
+        <button class="btn btn-outline" onclick="generateReport()">📊 生成周报</button>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 写日记</button>
+      </div>
+    </div>
+
+    <div id="reportArea"></div>
+
+    <div class="diary-layout">
+      <aside class="card diary-sidebar" style="padding:10px;">
+        <div id="diaryList"></div>
+      </aside>
+      <div>
+        <div class="card" id="diaryDetail" style="padding:24px;min-height:300px;">
+          <div class="empty-state"><div class="icon">📔</div><p>点击左侧日记查看，或点"写日记"创建</p></div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- 日记编辑模态框 -->
+  <div class="modal-overlay" id="diaryModal">
+    <div class="modal" style="max-width:620px;">
+      <div class="modal-header">
+        <h3 id="diaryModalTitle">写日记</h3>
+        <button class="modal-close" onclick="closeModal('diaryModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>日期</label>
+          <input type="date" id="diaryDate">
+        </div>
+        <div class="form-group">
+          <label>今日心情</label>
+          <div class="mood-selector" id="moodSelector">
+            <span data-mood="乐观" onclick="selectMood('乐观')">😀</span>
+            <span data-mood="中性" onclick="selectMood('中性')">😐</span>
+            <span data-mood="谨慎" onclick="selectMood('谨慎')">🤔</span>
+            <span data-mood="恐慌" onclick="selectMood('恐慌')">😰</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>对大盘的看法</label>
+          <textarea id="diaryMarketView" rows="2" placeholder="今日大盘走势和你的判断..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>今日操作（自动从交易记录拉取）</label>
+          <div class="ops-auto" id="diaryOps"><span style="color:var(--text-light);">选择日期后自动显示</span></div>
+        </div>
+        <div class="form-group">
+          <label>反思感悟</label>
+          <textarea id="diaryReflections" rows="4" placeholder="今天的收获、教训、感悟..."></textarea>
+        </div>
+        <div class="form-group">
+          <label>教训/收获标签</label>
+          <div id="lessonTags"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('diaryModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveDiary()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 数据管理 -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header"><h3>💾 数据管理</h3><button class="modal-close" onclick="closeModal('dataModal')">✕</button></div>
+      <div class="modal-body">
+        <p class="data-info"><b>🌐 自动同步</b>：页面右下角点同步按钮，输入 GitHub Token 即可开启跨设备云同步。<br><b>📁 手动传输</b>：也可通过下方导出/导入在设备间迁移数据。</p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();"><span class="btn-icon">⬇️</span><br>导出数据</button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();"><span class="btn-icon">⬆️</span><br>导入数据</button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="js/app.js"></script>
+  <script>
+    let editingDiaryId = null;
+    let selectedMood = '';
+    let selectedLessons = [];
+    const LESSONS = ['追涨杀跌','频繁交易','不止损','过度自信','信息不足','逆势操作','耐心等待','纪律执行','仓位合理','情绪控制'];
+    const MOOD_EMOJI = { '乐观':'😀', '中性':'😐', '谨慎':'🤔', '恐慌':'😰' };
+
+    function renderLessonTags() {
+      document.getElementById('lessonTags').innerHTML = LESSONS.map(l => {
+        const sel = selectedLessons.includes(l);
+        return `<span class="lesson-tag ${sel?'selected':''}" onclick="toggleLesson('${l}')">${l}</span>`;
+      }).join('');
+    }
+    function toggleLesson(l) {
+      const i = selectedLessons.indexOf(l);
+      if (i >= 0) selectedLessons.splice(i, 1);
+      else selectedLessons.push(l);
+      renderLessonTags();
+    }
+    function selectMood(m) {
+      selectedMood = m;
+      document.querySelectorAll('.mood-selector span').forEach(s => {
+        s.classList.toggle('selected', s.dataset.mood === m);
+      });
+    }
+
+    function renderDiaryList() {
+      const list = DB.getDiaries();
+      const el = document.getElementById('diaryList');
+      if (!list.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);font-size:0.85rem;">暂无日记</div>';
+        return;
+      }
+      el.innerHTML = list.map(d => `
+        <div class="diary-list-item ${editingDiaryId===d.id?'active':''}" onclick="viewDiary('${d.id}')">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span class="d-date">${d.date}</span>
+            <span class="d-mood">${MOOD_EMOJI[d.mood]||'📝'}</span>
+          </div>
+          <div class="d-preview">${d.marketView || '无市场观点'}</div>
+        </div>
+      `).join('');
+    }
+
+    function viewDiary(id) {
+      const d = DB.getDiaries().find(x => x.id === id);
+      if (!d) return;
+      editingDiaryId = id;
+      renderDiaryList();
+      const el = document.getElementById('diaryDetail');
+      const opsHtml = (d.operations || []).map(op => `
+        <div class="op-row">
+          <span><strong>${op.stockName}</strong> ${op.action} ${op.shares}股 @ ¥${op.price}</span>
+          <span style="color:var(--text-light);">${op.action === '买入' ? '🟢' : '🔴'}</span>
+        </div>
+      `).join('');
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div>
+            <h3 style="font-size:1.2rem;">${MOOD_EMOJI[d.mood]||'📝'} ${d.date}</h3>
+            <span style="color:var(--text-light);font-size:0.82rem;">心情：${d.mood||'未设置'}</span>
+          </div>
+          <div class="actions">
+            <button class="btn btn-sm btn-outline" onclick="editDiary('${d.id}')">✏️ 编辑</button>
+            <button class="btn btn-sm btn-outline" onclick="deleteDiary('${d.id}')">🗑️</button>
+          </div>
+        </div>
+        ${d.marketView ? `<div style="margin-bottom:14px;"><strong>📊 大盘观点：</strong>${d.marketView}</div>` : ''}
+        ${opsHtml ? `<div class="ops-auto" style="margin-bottom:14px;"><strong>📈 今日操作：</strong>${opsHtml}</div>` : ''}
+        ${d.reflections ? `<div style="margin-bottom:14px;line-height:1.8;"><strong>💡 反思：</strong><br>${d.reflections}</div>` : ''}
+        ${(d.lessons||[]).length ? `<div><strong>🏷️ 教训：</strong>${d.lessons.map(l => `<span class="lesson-tag selected">${l}</span>`).join('')}</div>` : ''}
+      `;
+    }
+
+    function openAddModal() {
+      editingDiaryId = null;
+      document.getElementById('diaryModalTitle').textContent = '写日记';
+      document.getElementById('diaryDate').value = new Date().toISOString().slice(0, 10);
+      document.getElementById('diaryMarketView').value = '';
+      document.getElementById('diaryReflections').value = '';
+      selectedMood = '';
+      selectedLessons = [];
+      document.querySelectorAll('.mood-selector span').forEach(s => s.classList.remove('selected'));
+      renderLessonTags();
+      updateOpsPreview();
+      openModal('diaryModal');
+    }
+
+    function editDiary(id) {
+      const d = DB.getDiaries().find(x => x.id === id);
+      if (!d) return;
+      editingDiaryId = id;
+      document.getElementById('diaryModalTitle').textContent = '编辑日记';
+      document.getElementById('diaryDate').value = d.date;
+      document.getElementById('diaryMarketView').value = d.marketView || '';
+      document.getElementById('diaryReflections').value = d.reflections || '';
+      selectedMood = d.mood || '';
+      selectedLessons = [...(d.lessons || [])];
+      selectMood(selectedMood);
+      renderLessonTags();
+      updateOpsPreview();
+      openModal('diaryModal');
+    }
+
+    function updateOpsPreview() {
+      const date = document.getElementById('diaryDate').value;
+      if (!date) { document.getElementById('diaryOps').innerHTML = '<span style="color:var(--text-light);">选择日期后自动显示</span>'; return; }
+      const trades = DB.getTrades().filter(t => t.buyDate === date || t.sellDate === date);
+      if (!trades.length) { document.getElementById('diaryOps').innerHTML = '<span style="color:var(--text-light);">该日期无交易记录</span>'; return; }
+      const ops = [];
+      trades.forEach(t => {
+        if (t.buyDate === date) ops.push({ stockName: t.stockName, action: '买入', shares: t.shares, price: t.buyPrice });
+        if (t.sellDate === date) ops.push({ stockName: t.stockName, action: '卖出', shares: t.shares, price: t.sellPrice });
+      });
+      document.getElementById('diaryOps').innerHTML = ops.map(op => `
+        <div class="op-row"><span><strong>${op.stockName}</strong> ${op.action} ${op.shares}股 @ ¥${op.price}</span><span>${op.action === '买入' ? '🟢' : '🔴'}</span></div>
+      `).join('');
+    }
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('diaryDate').addEventListener('change', updateOpsPreview);
+    });
+
+    function saveDiary() {
+      const date = document.getElementById('diaryDate').value;
+      if (!date) { showToast('请选择日期'); return; }
+      const data = {
+        date,
+        mood: selectedMood,
+        marketView: document.getElementById('diaryMarketView').value.trim(),
+        reflections: document.getElementById('diaryReflections').value.trim(),
+        lessons: [...selectedLessons],
+      };
+      // 自动拉取当日操作
+      const trades = DB.getTrades().filter(t => t.buyDate === date || t.sellDate === date);
+      data.operations = [];
+      trades.forEach(t => {
+        if (t.buyDate === date) data.operations.push({ stockName: t.stockName, action: '买入', shares: t.shares, price: t.buyPrice });
+        if (t.sellDate === date) data.operations.push({ stockName: t.stockName, action: '卖出', shares: t.shares, price: t.sellPrice });
+      });
+
+      if (editingDiaryId) {
+        DB.updateDiary(editingDiaryId, data);
+        showToast('日记已更新');
+      } else {
+        DB.addDiary(data);
+        showToast('日记已保存');
+      }
+      closeModal('diaryModal');
+      renderDiaryList();
+      if (editingDiaryId) viewDiary(editingDiaryId);
+    }
+
+    function deleteDiary(id) {
+      if (!confirm('确定删除这篇日记吗？')) return;
+      DB.deleteDiary(id);
+      editingDiaryId = null;
+      renderDiaryList();
+      document.getElementById('diaryDetail').innerHTML = '<div class="empty-state"><div class="icon">📔</div><p>点击左侧日记查看</p></div>';
+      showToast('已删除');
+    }
+
+    // ===== 周报生成 =====
+    function generateReport() {
+      const snapshots = DB.getSnapshots().sort((a, b) => new Date(a.date) - new Date(b.date));
+      const trades = DB.getTrades();
+      const diaries = DB.getDiaries();
+
+      // 最近7天
+      const now = new Date();
+      const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+      const weekTrades = trades.filter(t => new Date(t.buyDate) >= weekAgo || (t.sellDate && new Date(t.sellDate) >= weekAgo));
+      const weekDiaries = diaries.filter(d => new Date(d.date) >= weekAgo);
+      const weekSnaps = snapshots.filter(s => new Date(s.date) >= weekAgo);
+
+      const closedTrades = weekTrades.filter(t => t.sellPrice);
+      const totalProfit = closedTrades.reduce((s, t) => s + (parseFloat(t.profit) || 0), 0);
+      const wins = closedTrades.filter(t => parseFloat(t.profit) > 0).length;
+      const winRate = closedTrades.length > 0 ? (wins / closedTrades.length * 100).toFixed(0) : '—';
+      const bestTrade = closedTrades.sort((a, b) => parseFloat(b.profit) - parseFloat(a.profit))[0];
+      const worstTrade = closedTrades.sort((a, b) => parseFloat(a.profit) - parseFloat(b.profit))[0];
+
+      // 净值变化
+      let navChange = '—';
+      if (weekSnaps.length >= 2) {
+        const start = weekSnaps[0].totalAssets;
+        const end = weekSnaps[weekSnaps.length - 1].totalAssets;
+        navChange = ((end / start - 1) * 100).toFixed(2) + '%';
+      }
+
+      // 心情分布
+      const moodDist = {};
+      weekDiaries.forEach(d => { moodDist[d.mood||'未设置'] = (moodDist[d.mood||'未设置'] || 0) + 1; });
+
+      const el = document.getElementById('reportArea');
+      el.innerHTML = `
+        <div class="report-card">
+          <h3>📊 最近7天投资周报</h3>
+          <p style="font-size:0.85rem;opacity:0.8;">${weekAgo.toISOString().slice(0,10)} 至 ${now.toISOString().slice(0,10)}</p>
+          <div class="report-grid">
+            <div class="item"><div class="lbl">净值变化</div><div class="val" style="color:${parseFloat(navChange)>=0?'#69f0ae':'#ff8a80'};">${navChange}</div></div>
+            <div class="item"><div class="lbl">交易笔数</div><div class="val">${weekTrades.length}</div></div>
+            <div class="item"><div class="lbl">已平仓盈亏</div><div class="val" style="color:${totalProfit>=0?'#69f0ae':'#ff8a80'};">${totalProfit>=0?'+':''}¥${totalProfit.toFixed(0)}</div></div>
+            <div class="item"><div class="lbl">胜率</div><div class="val">${winRate}${winRate!=='—'?'%':''}</div></div>
+            <div class="item"><div class="lbl">最佳交易</div><div class="val" style="font-size:0.9rem;">${bestTrade?bestTrade.stockName+' +'+parseFloat(bestTrade.profit).toFixed(0):'—'}</div></div>
+            <div class="item"><div class="lbl">最差交易</div><div class="val" style="font-size:0.9rem;">${worstTrade?worstTrade.stockName+' '+parseFloat(worstTrade.profit).toFixed(0):'—'}</div></div>
+            <div class="item"><div class="lbl">日记篇数</div><div class="val">${weekDiaries.length}</div></div>
+            <div class="item"><div class="lbl">心情分布</div><div class="val" style="font-size:0.85rem;">${Object.entries(moodDist).map(([m,c]) => `${MOOD_EMOJI[m]||'📝'}${c}`).join(' ') || '—'}</div></div>
+          </div>
+        </div>
+      `;
+      showToast('周报已生成');
+    }
+
+    // 初始化
+    DB.initSampleData();
+    renderDiaryList();
+  </script>
+</body>
+</html>
