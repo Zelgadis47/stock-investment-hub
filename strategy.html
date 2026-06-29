@@ -426,6 +426,14 @@
       doMatch(s.name, s.logic || '');
     }
 
+    // ===== 策略条件库（参� InStock & Quantitative-Trading-System 量化选股逻辑） =====
+
+    // 条件权重标准化：所有策略满分100
+    function normalizeScore(scored, maxRaw) {
+      if (maxRaw <= 0) return scored;
+      return scored.map(s => ({ ...s, _score: Math.round(s._score / maxRaw * 100) }));
+    }
+
     async function doMatch(name, logic) {
       const stocks = await fetchStockData('full_stock_data');
       if (!stocks.length) {
@@ -434,108 +442,192 @@
       }
 
       const kw = (name + logic).toLowerCase();
-      let rules, resultColumns;
+      let strategyName, resultColumns, hardFilters, scoreRules, sortColumns;
 
-      // ===== 策略匹配规则定义 =====
-      if (kw.includes('超跌') || kw.includes('回调')) {
-        // 超跌反弹：跌幅大 + 资金流入 + 量能配合
-        resultColumns = ['名称','代码','现价','跌幅','主力净流入','量比','PE','换手率'];
-        rules = [
-          { field:'f3', condition: v => v < -5, weight: 20 - Math.abs(v) * 1.5, desc:'跌幅大' },
-          { field:'f62', condition: v => v > 500, weight: Math.min(v / 1000, 15), desc:'主力净流入' },
-          { field:'f10', condition: v => v > 0.7, weight: Math.min(v * 3, 10), desc:'量比活跃' },
-          { field:'f9', condition: v => v > 0 && v < 100, weight: 5, desc:'PE合理' },
-          { field:'f8', condition: v => v < 15, weight: 3, desc:'换手率适中' },
+      // ===== 策略规则集（参考 GitHub 量化项目设计） =====
+
+      if (kw.includes('超跌') || kw.includes('回调') || kw.includes('反弹')) {
+        strategyName = '超跌反弹策略';
+        resultColumns = ['名称','代码','现价','跌幅','主力净流入','量比','PE','总市值'];
+        sortColumns = ['跌幅','主力净流入','量比'];
+        hardFilters = [
+          { field:'f3', test: v => v < -3, name:'跌幅>3%', fail:'跌幅不足' },
+          { field:'f9', test: v => v > 0, name:'盈利公司', fail:'亏损' },
+        ];
+        scoreRules = [
+          { field:'f3', group:'跌幅', weight:40,
+            score: v => Math.min(40, Math.abs(Math.max(v, -15)) * 2.5), desc:'跌幅打分（越跌权重越高，上限40分）' },
+          { field:'f62', group:'资金', weight:35,
+            score: v => v > 0 ? Math.min(35, v / 800 + 5) : Math.max(0, v / 200 + 5), desc:'主力资金（流入加分，流出减分）' },
+          { field:'f10', group:'量能', weight:15,
+            score: v => v >= 0.5 ? Math.min(15, v * 5) : 0, desc:'量比（≥0.5才有活跃度分）' },
+          { field:'f20', group:'基本面', weight:10,
+            score: v => v > 3e8 ? Math.min(10, Math.log10(v / 1e8) * 2) : 3, desc:'市值规模' },
         ];
       } else if (kw.includes('股息') || kw.includes('红利')) {
-        resultColumns = ['名称','代码','现价','股息率','市值','主力净流入','PE'];
-        rules = [
-          { field:'f37', condition: v => v > 2, weight: v * 3, desc:'股息率高' },
-          { field:'f20', condition: v => v > 1e9, weight: 8, desc:'市值大' },
-          { field:'f9', condition: v => v > 0 && v < 20, weight: 5, desc:'低估值' },
-          { field:'f62', condition: v => v > -500, weight: 3, desc:'资金面不差' },
+        strategyName = '高股息红利策略';
+        resultColumns = ['名称','代码','现价','股息率','市盈率','主力净流入','总市值'];
+        sortColumns = ['股息率','市盈率'];
+        hardFilters = [
+          { field:'f37', test: v => v > 0, name:'有分红', fail:'无分红' },
+          { field:'f9', test: v => v > 0 && v < 100, name:'PE合理', fail:'PE异常' },
         ];
-      } else if (kw.includes('低估值') || kw.includes('市盈率') || kw.includes('pe')) {
-        resultColumns = ['名称','代码','现价','PE','市值','主力净流入','股息率','涨跌幅'];
-        rules = [
-          { field:'f9', condition: v => v > 0 && v < 30, weight: 25 - v * 0.6, desc:'PE低' },
-          { field:'f20', condition: v => v > 5e9, weight: 8, desc:'市值大' },
-          { field:'f62', condition: v => v > -300, weight: 5, desc:'资金面' },
-          { field:'f37', condition: v => v > 1, weight: v * 2, desc:'有股息' },
-          { field:'f23', condition: v => v > 0 && v < 5, weight: 4, desc:'PB合理' },
+        scoreRules = [
+          { field:'f37', group:'股息', weight:45, score: v => Math.min(45, v * 8), desc:'股息率越高越好（股息率×8，上限45分）' },
+          { field:'f9', group:'估值', weight:25, score: v => v > 0 ? Math.max(0, 25 - v * 0.8) : 0, desc:'PE越低越好（PE每增1扣0.8分）' },
+          { field:'f20', group:'规模', weight:15, score: v => v > 1e9 ? Math.min(15, Math.log10(v / 1e8) - 0.5) : 5, desc:'市值越大越稳' },
+          { field:'f62', group:'资金', weight:15, score: v => v > -500 ? Math.min(15, (v + 500) / 200) : 0, desc:'资金面不差才加分' },
         ];
-      } else if (kw.includes('趋势') || kw.includes('均线') || kw.includes('上升')) {
-        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','换手率','PE'];
-        rules = [
-          { field:'f3', condition: v => v > 2, weight: v * 1.2, desc:'趋势向上' },
-          { field:'f62', condition: v => v > 1000, weight: Math.min(v / 800, 12), desc:'主力流入' },
-          { field:'f10', condition: v => v > 0.8, weight: Math.min(v * 4, 10), desc:'量能配合' },
-          { field:'f8', condition: v => v > 2 && v < 20, weight: 5, desc:'交投活跃' },
-          { field:'f9', condition: v => v > 0 && v < 80, weight: 3, desc:'估值不过高' },
+      } else if (kw.includes('放量') || kw.includes('量能')) {
+        strategyName = '放量上涨策略';
+        resultColumns = ['名称','代码','现价','涨跌幅','量比','换手率','主力净流入','市值'];
+        sortColumns = ['量比','涨跌幅'];
+        hardFilters = [
+          { field:'f3', test: v => v > 0, name:'上涨', fail:'未涨' },
+          { field:'f10', test: v => v > 1.0, name:'放量', fail:'量比不足' },
         ];
-      } else if (kw.includes('突破') || kw.includes('新高')) {
-        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市值','换手率'];
-        rules = [
-          { field:'f3', condition: v => v > 4, weight: v * 1.5, desc:'强势突破' },
-          { field:'f62', condition: v => v > 2000, weight: Math.min(v / 500, 15), desc:'主力大额流入' },
-          { field:'f10', condition: v => v > 1.0, weight: Math.min(v * 5, 12), desc:'放量突破' },
-          { field:'f8', condition: v => v > 3 && v < 25, weight: 5, desc:'换手充分' },
-          { field:'f20', condition: v => v > 3e9, weight: 3, desc:'非微盘股' },
+        scoreRules = [
+          { field:'f10', group:'量能', weight:30, score: v => Math.min(30, v * 5), desc:'量比（1.0=5分, 6.0+=30满分）' },
+          { field:'f3', group:'涨幅', weight:25, score: v => Math.min(25, v * 4), desc:'涨幅（2%=8分, 6%+=24分）' },
+          { field:'f62', group:'资金', weight:25, score: v => v > 0 ? Math.min(25, v / 400 + 3) : 0, desc:'主力净流入（1000万≈5分, 1亿=25分）' },
+          { field:'f8', group:'活跃', weight:10, score: v => v > 1 && v < 30 ? Math.min(10, v) : 3, desc:'换手率适中' },
+          { field:'f20', group:'规模', weight:10, score: v => v > 3e9 ? Math.min(10, Math.log10(v / 1e8) - 1) : 3, desc:'市值规模' },
+        ];
+      } else if (kw.includes('低估值') || kw.includes('市盈率') || (kw.includes('pe') && !kw.includes('pet'))) {
+        strategyName = '低估值龙头策略';
+        resultColumns = ['名称','代码','现价','市盈率','市净率','股息率','主力净流入','总市值'];
+        sortColumns = ['市盈率','股息率'];
+        hardFilters = [
+          { field:'f9', test: v => v > 0, name:'盈利', fail:'亏损' },
+          { field:'f20', test: v => v > 5e9, name:'市值>50亿', fail:'市值过小' },
+        ];
+        scoreRules = [
+          { field:'f9', group:'PE', weight:35, score: v => Math.max(0, 35 - v * 1.2), desc:'PE越低越好（PEx1.2扣分）' },
+          { field:'f23', group:'PB', weight:20, score: v => v > 0 ? Math.max(0, 20 - v * 3) : 5, desc:'PB越低越好' },
+          { field:'f37', group:'股息', weight:20, score: v => v > 0.5 ? Math.min(20, v * 4) : v > 0 ? 5 : 0, desc:'有股息加分' },
+          { field:'f62', group:'资金', weight:15, score: v => v > -300 ? Math.min(15, (v + 300) / 200) : 0, desc:'资金面' },
+          { field:'f20', group:'规模', weight:10, score: v => v > 50e8 ? Math.min(10, Math.log10(v / 1e8) - 2) : 2, desc:'龙头规模' },
+        ];
+      } else if (kw.includes('趋势') || kw.includes('均线') || kw.includes('多头')) {
+        strategyName = '趋势跟踪策略';
+        resultColumns = ['名称','代码','现价','涨跌幅','量比','换手率','主力净流入','市值'];
+        sortColumns = ['涨跌幅','换手率'];
+        hardFilters = [
+          { field:'f3', test: v => v > 1, name:'上涨趋势', fail:'未上涨' },
+          { field:'f10', test: v => v > 0.6, name:'量比>0.6', fail:'量能不足' },
+        ];
+        scoreRules = [
+          { field:'f3', group:'趋势', weight:30, score: v => Math.min(30, v * 2.5), desc:'趋势强度' },
+          { field:'f62', group:'资金', weight:25, score: v => v > 0 ? Math.min(25, v / 600 + 2) : v > -500 ? 5 : 0, desc:'主力净流入' },
+          { field:'f10', group:'量能', weight:20, score: v => Math.min(20, v * 4), desc:'量能配合' },
+          { field:'f8', group:'活跃', weight:15, score: v => v > 1 && v < 25 ? Math.min(15, v * 0.8) : 3, desc:'换手活跃' },
+          { field:'f9', group:'估值', weight:10, score: v => v > 0 && v < 80 ? Math.max(0, 10 - v * 0.1) : 0, desc:'估值不过高' },
+        ];
+      } else if (kw.includes('突破') || kw.includes('平台') || kw.includes('新高')) {
+        strategyName = '平台突破策略';
+        resultColumns = ['名称','代码','现价','涨跌幅','量比','换手率','主力净流入','市值'];
+        sortColumns = ['量比','涨跌幅'];
+        hardFilters = [
+          { field:'f3', test: v => v > 3, name:'强势突破', fail:'涨幅不足' },
+          { field:'f10', test: v => v > 1.2, name:'放量突破', fail:'量比不足' },
+        ];
+        scoreRules = [
+          { field:'f10', group:'量能', weight:30, score: v => Math.min(30, v * 5), desc:'放量程度' },
+          { field:'f3', group:'强度', weight:25, score: v => Math.min(25, v * 2.5), desc:'突破强度' },
+          { field:'f62', group:'资金', weight:25, score: v => v > 2000 ? Math.min(25, v / 400) : v > 0 ? v / 200 : 0, desc:'主力大资金' },
+          { field:'f8', group:'换手', weight:10, score: v => v > 3 && v < 25 ? Math.min(10, v * 0.5) : 3, desc:'换手充分' },
+          { field:'f20', group:'规模', weight:10, score: v => v > 2e9 ? Math.min(10, Math.log10(v / 1e8) - 0.5) : 2, desc:'非微型股' },
         ];
       } else if (kw.includes('超预期') || kw.includes('财报') || kw.includes('营收') || kw.includes('业绩')) {
-        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市值','PE'];
-        rules = [
-          { field:'f3', condition: v => v > 3, weight: v * 1, desc:'市场认可' },
-          { field:'f62', condition: v => v > 800, weight: Math.min(v / 600, 12), desc:'主力净流入' },
-          { field:'f10', condition: v => v > 0.8, weight: Math.min(v * 3, 8), desc:'成交活跃' },
-          { field:'f20', condition: v => v > 2e9, weight: 5, desc:'有一定规模' },
-          { field:'f9', condition: v => v > 0 && v < 100, weight: 3, desc:'PE合理' },
+        strategyName = '业绩驱动策略';
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市盈率','总市值'];
+        sortColumns = ['涨跌幅','主力净流入'];
+        hardFilters = [
+          { field:'f3', test: v => v > 2, name:'市场认可', fail:'未获认可' },
+          { field:'f9', test: v => v > 0, name:'盈利', fail:'亏损' },
+        ];
+        scoreRules = [
+          { field:'f3', group:'表现', weight:30, score: v => Math.min(30, v * 3), desc:'市场表现分' },
+          { field:'f62', group:'资金', weight:30, score: v => v > 500 ? Math.min(30, v / 400) : Math.max(0, v / 200 + 3), desc:'主力资金流向' },
+          { field:'f10', group:'活跃', weight:20, score: v => v > 0.6 ? Math.min(20, v * 5) : 0, desc:'成交活跃度' },
+          { field:'f9', group:'估值', weight:10, score: v => v < 100 ? Math.max(0, 10 - v * 0.1) : 0, desc:'估值空间' },
+          { field:'f20', group:'规模', weight:10, score: v => v > 3e9 ? Math.min(10, Math.log10(v / 1e8) - 1) : 3, desc:'企业规模' },
         ];
       } else if (kw.includes('网格') || kw.includes('etf')) {
+        strategyName = 'ETF网格策略';
         resultColumns = ['名称','代码','现价','涨跌幅','换手率','市值'];
-        rules = [
-          { field:'f8', condition: v => v > 1 && v < 30, weight: 10, desc:'流动性好' },
-          { field:'f3', condition: v => Math.abs(v) < 8, weight: 8 - Math.abs(v) * 0.3, desc:'波动适中' },
+        sortColumns = ['换手率'];
+        hardFilters = [
+          { field:'f8', test: v => v > 1, name:'有流动性', fail:'流动性差' },
+        ];
+        scoreRules = [
+          { field:'f8', group:'流动性', weight:40, score: v => Math.min(40, v * 3), desc:'流动性分' },
+          { field:'f3', group:'波动', weight:40, score: v => Math.abs(v) < 10 ? Math.max(0, 40 - Math.abs(v) * 4) : 0, desc:'波动越平稳越适合网格' },
+          { field:'f20', group:'规模', weight:20, score: v => v > 1e9 ? Math.min(20, Math.log10(v / 1e8)) : 2, desc:'规模分' },
         ];
       } else {
-        // 通用：结合资金面 + 基本面
-        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','PE','市值','换手率'];
-        rules = [
-          { field:'f3', condition: v => true, weight: 5, desc:'关注度' },
-          { field:'f62', condition: v => v > 0, weight: Math.min(v / 500, 15), desc:'主力净流入' },
-          { field:'f9', condition: v => v > 0 && v < 80, weight: 8, desc:'PE合理' },
-          { field:'f20', condition: v => v > 1e9, weight: 5, desc:'有一定规模' },
+        // 通用量化筛选
+        strategyName = '通用量化优选';
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市盈率','总市值'];
+        sortColumns = ['主力净流入','涨跌幅'];
+        hardFilters = [
+          { field:'f9', test: v => v > 0 && v < 150, name:'估值合理', fail:'估值异常' },
+          { field:'f20', test: v => v > 5e8, name:'市值>5亿', fail:'市值过小' },
+        ];
+        scoreRules = [
+          { field:'f62', group:'资金', weight:35, score: v => v > 0 ? Math.min(35, v / 1000 + 3) : Math.max(0, v / 1000 + 5), desc:'主力资金流' },
+          { field:'f3', group:'动量', weight:20, score: v => Math.min(20, Math.max(-10, v * 2) + 10), desc:'动量分' },
+          { field:'f9', group:'估值', weight:20, score: v => v > 0 ? Math.max(0, 20 - v * 0.25) : 0, desc:'估值分' },
+          { field:'f10', group:'活跃', weight:15, score: v => v > 0.4 ? Math.min(15, v * 5) : 0, desc:'活跃度分' },
+          { field:'f20', group:'规模', weight:10, score: v => Math.min(10, Math.log10(v / 1e8)), desc:'规模分' },
         ];
       }
 
-      // 评分并排序
-      const scored = stocks
-        .map(s => ({ ...s, _score: scoreStock(s, rules) }))
-        .filter(s => s._score > 0)
-        .sort((a, b) => b._score - a._score)
-        .slice(0, 25);
+      // 1. 硬性条件过滤
+      const passed = stocks.filter(s => {
+        for (const f of hardFilters) {
+          if (!f.test(parseFloat(s[f.field]) || 0)) return false;
+        }
+        return true;
+      });
 
-      // 渲染筛选条件说明
-      const condDesc = rules.map(r => r.desc).join(' + ');
-      document.getElementById('matchCondition').textContent = `${condDesc}（综合评分排序，共${scored.length}只）`;
-
-      // 渲染结果
-      document.getElementById('matchLoading').style.display = 'none';
-      document.getElementById('matchResults').style.display = 'block';
-
-      if (!scored.length) {
-        document.getElementById('matchTable').querySelector('tbody').innerHTML = '';
+      if (!passed.length) {
+        document.getElementById('matchLoading').style.display = 'none';
+        document.getElementById('matchResults').style.display = 'block';
+        document.getElementById('matchCondition').textContent = '当前无股票通过硬性筛选条件';
         document.getElementById('matchEmpty').style.display = 'block';
+        document.getElementById('matchTable').querySelector('tbody').innerHTML = '';
         return;
       }
 
+      // 2. 评分
+      const scored = passed.map(s => {
+        let total = 0;
+        const breakdown = [];
+        for (const r of scoreRules) {
+          const val = parseFloat(s[r.field]) || 0;
+          const pts = r.score(val);
+          total += pts;
+          breakdown.push({ name: r.group, score: Math.round(pts) });
+        }
+        return { ...s, _score: Math.round(Math.min(100, total)), _breakdown: breakdown };
+      }).sort((a, b) => b._score - a._score).slice(0, 25);
+
+      // 3. 生成筛选说明
+      const hfDesc = hardFilters.map(f => f.name).join(' + ');
+      const condDesc = `硬条件：${hfDesc} | 评分维度：${scoreRules.map(r => r.group + '(' + r.weight + '%)').join('、')}`;
+      document.getElementById('matchCondition').textContent = `${condDesc} | 结果 ${scored.length}只`;
+
+      // 4. 渲染
+      document.getElementById('matchLoading').style.display = 'none';
+      document.getElementById('matchResults').style.display = 'block';
       document.getElementById('matchEmpty').style.display = 'none';
 
-      // 更新表头
       const thead = document.getElementById('matchTable').querySelector('thead tr');
-      thead.innerHTML = resultColumns.map(c => `<th>${c}</th>`).join('') + '<th>评分</th>';
+      thead.innerHTML = resultColumns.map(c => `<th>${c}</th>`).join('') + '<th>评分</th><th>满足条件</th>';
 
-      // 填充数据
+      const totalPts = scoreRules.reduce((s, r) => s + r.weight, 0);
+
       const tbody = document.getElementById('matchTable').querySelector('tbody');
       tbody.innerHTML = scored.map(s => {
         const code = s.f12 || '';
@@ -543,7 +635,14 @@
         const price = parseFloat(s.f2 || 0).toFixed(2);
         const marketTag = code.startsWith('6') ? 'sh' : 'sz';
         const url = `https://quote.eastmoney.com/${marketTag}${code}.html`;
-        const rating = '⭐'.repeat(Math.min(5, Math.round(s._score / 3)));
+
+        // 条件满足情况
+        const hfChecks = hardFilters.map(f => {
+          const ok = f.test(parseFloat(s[f.field]) || 0);
+          return `<span style="font-size:0.7rem;padding:1px 5px;border-radius:3px;margin:1px;
+            background:${ok?'#e8f5e9':'#ffebee'};color:${ok?'#2e7d32':'#c62828'};"
+            title="${ok?'✓ '+f.name:'✗ '+f.fail}">${ok?'✅':'❌'}</span>`;
+        }).join('');
 
         return `<tr style="cursor:pointer;" onclick="window.open('${url}','_blank')" title="点击打开东方财富详情">
           ${resultColumns.map(col => {
@@ -557,13 +656,15 @@
               return `<td><span class="${cls}">${fmtNum(s.f62)}</span></td>`;
             }
             if (col === '量比') return `<td>${(parseFloat(s.f10) || 0).toFixed(2)}</td>`;
-            if (col === 'PE') return `<td>${fmtPE(s.f9)}</td>`;
+            if (col === '市盈率' || col === 'PE') return `<td>${fmtPE(s.f9)}</td>`;
+            if (col === '市净率') return `<td>${(parseFloat(s.f23) || 0).toFixed(2)}</td>`;
             if (col === '换手率') return `<td>${(parseFloat(s.f8) || 0).toFixed(2)}%</td>`;
-            if (col === '市值') return `<td style="font-size:0.8rem;">${fmtNum(s.f20)}</td>`;
+            if (col === '总市值' || col === '市值') return `<td style="font-size:0.8rem;">${fmtNum(s.f20)}</td>`;
             if (col === '股息率') return `<td>${(parseFloat(s.f37) || 0).toFixed(2)}%</td>`;
             return '<td>-</td>';
           }).join('')}
-          <td style="font-size:0.82rem;color:var(--warning);">${rating}</td>
+          <td style="font-size:0.82rem;font-weight:600;color:${s._score>=60?'var(--success)':s._score>=30?'var(--warning)':'var(--text-light)'};">${s._score}分</td>
+          <td style="font-size:0.7rem;white-space:nowrap;">${hfChecks}</td>
         </tr>`;
       }).join('');
     }
