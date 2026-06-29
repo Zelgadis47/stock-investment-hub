@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>风险评估 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+  <style>
+    .risk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .risk-card { background: var(--card-bg); padding: 16px; border-radius: var(--radius-sm); border: 1px solid var(--border); border-left: 4px solid; }
+    .risk-card.good { border-left-color: var(--success); }
+    .risk-card.warn { border-left-color: var(--warning); }
+    .risk-card.bad { border-left-color: var(--danger); }
+    .risk-card .r-label { font-size: 0.8rem; color: var(--text-light); }
+    .risk-card .r-value { font-size: 1.3rem; font-weight: 700; margin-top: 4px; }
+    .risk-card .r-desc { font-size: 0.75rem; color: var(--text-light); margin-top: 3px; }
+    .chart-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+    .chart-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; box-shadow: var(--shadow); }
+    .chart-card h3 { font-size: 0.95rem; margin-bottom: 10px; color: var(--primary); }
+    .chart-container { height: 260px; }
+    .stress-test { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 20px; margin-bottom: 20px; }
+    .stress-test h3 { margin-bottom: 12px; }
+    .stress-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .stress-btn { padding: 8px 16px; border-radius: var(--radius-sm); cursor: pointer; font-size: 0.85rem; border: 1px solid var(--border); background: var(--card-bg); transition: all 0.15s; }
+    .stress-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .stress-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .stress-result { padding: 16px; border-radius: var(--radius-sm); font-size: 0.9rem; }
+    .stress-result.danger { background: #ffebee; color: #c62828; }
+    .stress-result.warn { background: #fff8e1; color: #f57c00; }
+    .stress-result.safe { background: #e8f5e9; color: #2e7d32; }
+    @media (max-width: 768px) { .chart-row { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo"><div class="icon">📊</div><span>我的投资智库</span></div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav" id="mainNav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="portfolio.html">持仓管理</a>
+      <a href="watchlist.html">自选股</a>
+      <a href="trade.html">交易复盘</a>
+      <a href="diary.html">日记</a>
+      <a href="news.html">资讯</a>
+      <a href="risk.html" class="active">风控</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>⚖️ 风险评估</h2>
+    </div>
+
+    <!-- 风险指标 -->
+    <div class="risk-grid" id="riskGrid"></div>
+
+    <!-- 回撤曲线 -->
+    <div class="chart-row">
+      <div class="chart-card">
+        <h3>📉 历史回撤曲线</h3>
+        <div class="chart-container" id="drawdownChart"></div>
+      </div>
+      <div class="chart-card">
+        <h3>📊 月度收益分布</h3>
+        <div class="chart-container" id="monthlyChart"></div>
+      </div>
+    </div>
+
+    <!-- 压力测试 -->
+    <div class="stress-test">
+      <h3>🧪 压力测试</h3>
+      <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">模拟极端市场环境下持仓的预估损失</p>
+      <div class="stress-btns">
+        <div class="stress-btn" onclick="runStressTest(-0.1, this)">📉 普通回调 -10%</div>
+        <div class="stress-btn" onclick="runStressTest(-0.2, this)">⚠️ 中级调整 -20%</div>
+        <div class="stress-btn" onclick="runStressTest(-0.3, this)">🔥 2008危机 -30%</div>
+        <div class="stress-btn" onclick="runStressTest(-0.4, this)">💥 2015股灾 -40%</div>
+        <div class="stress-btn" onclick="runStressTest(-0.5, this)">☠️ 极端 -50%</div>
+      </div>
+      <div id="stressResult"></div>
+    </div>
+
+    <!-- 行业暴露 -->
+    <div class="chart-card" style="margin-bottom:20px;">
+      <h3>🏭 行业暴露热力图</h3>
+      <div class="chart-container" id="industryHeatmap" style="height:200px;"></div>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header"><h3>💾 数据管理</h3><button class="modal-close" onclick="closeModal('dataModal')">✕</button></div>
+      <div class="modal-body">
+        <p class="data-info"><b>🌐 自动同步</b>：页面右下角点同步按钮，输入 GitHub Token 即可开启跨设备云同步。<br><b>📁 手动传输</b>：也可通过下方导出/导入在设备间迁移数据。</p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();"><span class="btn-icon">⬇️</span><br>导出数据</button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();"><span class="btn-icon">⬆️</span><br>导入数据</button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="js/app.js"></script>
+  <script src="js/charts.js"></script>
+  <script>
+    function renderRisk() {
+      const snapshots = DB.getSnapshots().sort((a, b) => new Date(a.date) - new Date(b.date));
+      const grid = document.getElementById('riskGrid');
+
+      if (snapshots.length < 2) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">⚖️</div><p>数据不足，请先在持仓管理录入至少2天快照</p></div>';
+        return;
+      }
+
+      // 计算日收益率
+      const returns = [];
+      for (let i = 1; i < snapshots.length; i++) {
+        const r = (snapshots[i].totalAssets / snapshots[i-1].totalAssets) - 1;
+        returns.push(r);
+      }
+
+      // 年化收益率
+      const totalReturn = (snapshots[snapshots.length-1].totalAssets / snapshots[0].totalAssets) - 1;
+      const days = (new Date(snapshots[snapshots.length-1].date) - new Date(snapshots[0].date)) / (24*3600*1000);
+      const annualReturn = days > 0 ? (Math.pow(1 + totalReturn, 365/days) - 1) * 100 : 0;
+
+      // 最大回撤
+      let maxDD = 0, peak = snapshots[0].totalAssets;
+      const ddValues = [];
+      snapshots.forEach(s => {
+        if (s.totalAssets > peak) peak = s.totalAssets;
+        const dd = (s.totalAssets / peak - 1) * 100;
+        ddValues.push(dd);
+        if (dd < maxDD) maxDD = dd;
+      });
+
+      // 波动率（年化）
+      const avgReturn = returns.reduce((s, r) => s + r, 0) / returns.length;
+      const variance = returns.reduce((s, r) => s + Math.pow(r - avgReturn, 2), 0) / returns.length;
+      const dailyVol = Math.sqrt(variance);
+      const annualVol = dailyVol * Math.sqrt(250) * 100;
+
+      // 夏普比率（无风险利率2%）
+      const sharpe = annualVol > 0 ? (annualReturn - 2) / annualVol : 0;
+
+      // HHI 集中度
+      const latest = snapshots[snapshots.length - 1];
+      const totalMV = latest.positions?.reduce((s, p) => s + (p.marketValue || 0), 0) || 1;
+      const hhi = latest.positions?.reduce((s, p) => s + Math.pow((p.marketValue || 0) / totalMV * 100, 2), 0) || 0;
+
+      // 风险评级
+      const cls = (v, good, warn) => v >= good ? 'good' : v >= warn ? 'warn' : 'bad';
+      const rating = (v, good, warn, suffix='') => {
+        const c = cls(v, good, warn);
+        return { val: v.toFixed(2) + suffix, cls: c };
+      };
+
+      const metrics = [
+        { label: '年化收益率', ...rating(annualReturn, 15, 0, '%'), desc: '>15%优秀, >0%及格' },
+        { label: '最大回撤', ...rating(-maxDD, -10, -20, '%'), desc: '>-10%优秀, >-20%及格' },
+        { label: '年化波动率', ...rating(annualVol, 15, 25, '%'), desc: '<15%低波动, <25%中等' },
+        { label: '夏普比率', ...rating(sharpe, 1, 0.5, ''), desc: '>1优秀, >0.5及格' },
+        { label: 'HHI集中度', ...rating(hhi, 2000, 4000, ''), desc: '<2000分散, <4000中等' },
+        { label: '持仓股票数', val: latest.positions?.length || 0, cls: 'good', desc: latest.positions?.length >= 5 ? '分散度良好' : '建议增加持仓数量' },
+      ];
+
+      grid.innerHTML = metrics.map(m => `
+        <div class="risk-card ${typeof m.cls === 'string' ? m.cls : m.cls}">
+          <div class="r-label">${m.label}</div>
+          <div class="r-value">${m.val}</div>
+          <div class="r-desc">${m.desc}</div>
+        </div>
+      `).join('');
+
+      // 回撤曲线
+      Charts.drawdown('drawdownChart', snapshots.map(s => s.date), ddValues);
+
+      // 月度收益分布
+      const monthlyReturns = {};
+      snapshots.forEach((s, i) => {
+        if (i === 0) return;
+        const month = s.date.slice(0, 7);
+        const r = (s.totalAssets / snapshots[i-1].totalAssets - 1) * 100;
+        if (!monthlyReturns[month]) monthlyReturns[month] = 0;
+        monthlyReturns[month] += r;
+      });
+      const months = Object.keys(monthlyReturns);
+      Charts.bar('monthlyChart', months, [{ name: '月度收益%', data: months.map(m => parseFloat(monthlyReturns[m].toFixed(2))) }]);
+
+      // 行业暴露热力图
+      const industryMap = {};
+      latest.positions?.forEach(p => {
+        const ind = p.industry || '其他';
+        industryMap[ind] = (industryMap[ind] || 0) + (p.marketValue || 0);
+      });
+      Charts.pie('industryHeatmap', Object.entries(industryMap).map(([name, value]) => ({ name, value: parseFloat(value.toFixed(0)) })));
+    }
+
+    // 压力测试
+    function runStressTest(ratio, btn) {
+      document.querySelectorAll('.stress-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const snap = DB.getLatestSnapshot();
+      if (!snap || !snap.positions?.length) {
+        document.getElementById('stressResult').innerHTML = '<div class="stress-result warn">暂无持仓数据</div>';
+        return;
+      }
+
+      const totalMV = snap.positions.reduce((s, p) => s + (p.marketValue || 0), 0);
+      const loss = totalMV * ratio;
+      const lossPct = Math.abs(ratio * 100);
+      const totalAssets = snap.totalAssets || totalMV;
+      const assetsAfter = totalAssets + loss;
+      const assetsLossPct = Math.abs(loss / totalAssets * 100);
+
+      let cls = 'safe', advice = '';
+      if (assetsLossPct > 20) { cls = 'danger'; advice = '⚠️ 预估损失超过总资产20%，建议立即减仓或对冲！'; }
+      else if (assetsLossPct > 10) { cls = 'warn'; advice = '💡 损失较大，建议检查持仓集中度，考虑适当降低仓位。'; }
+      else { cls = 'safe'; advice = '✅ 损失在可承受范围内，继续持有观察。'; }
+
+      document.getElementById('stressResult').innerHTML = `
+        <div class="stress-result ${cls}">
+          <div style="font-size:1.1rem;font-weight:600;margin-bottom:8px;">📉 模拟跌幅 ${lossPct.toFixed(0)}%</div>
+          <div style="margin-bottom:6px;">持仓市值损失：<b>¥${Math.abs(loss).toLocaleString('zh-CN',{maximumFractionDigits:0})}</b></div>
+          <div style="margin-bottom:6px;">总资产变化：¥${totalAssets.toLocaleString('zh-CN',{maximumFractionDigits:0})} → ¥${assetsAfter.toLocaleString('zh-CN',{maximumFractionDigits:0})}（${assetsLossPct.toFixed(1)}%）</div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.1);">${advice}</div>
+        </div>
+      `;
+    }
+
+    DB.initSampleData();
+    renderRisk();
+  </script>
+</body>
+</html>
