@@ -357,20 +357,34 @@
     async function fetchStockData(cacheKey) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
-        const { data, ts } = JSON.parse(cached);
-        if (Date.now() - ts < CACHE_TTL) return data;
+        try {
+          const { data, ts } = JSON.parse(cached);
+          if (Date.now() - ts < CACHE_TTL) return data;
+        } catch(e) {}
       }
       // 获取全市场A股数据（所有关键字段）
       const fields = 'f2,f3,f4,f8,f9,f10,f12,f14,f20,f23,f37,f62';
-      const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=${fields}&_=${Date.now()}`;
+      const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=300&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=${fields}&_=${Date.now()}`;
       try {
-        const resp = await fetch(url);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 12000);
+        const resp = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(timer);
         const text = await resp.text();
         const json = JSON.parse(text);
         const data = json?.data?.diff || [];
-        localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+        if (data.length) {
+          localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+        }
         return data;
-      } catch(e) { return []; }
+      } catch(e) {
+        console.error('API请求失败:', e.message);
+        // 如果有缓存就用缓存（即使过期）
+        if (cached) {
+          try { return JSON.parse(cached).data; } catch(e2) {}
+        }
+        return [];
+      }
     }
 
     function fmtPct(v) {
