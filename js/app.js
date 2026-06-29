@@ -658,6 +658,197 @@ const DB = {
 <h4>费用对短线交易的影响</h4><p>假设佣金万2.5，买入卖出一次总费用约万分之4。如果每次交易只赚0.3%，刨去费用只剩0.26%。高频短线交易的摩擦成本不可忽视。</p>`,
     });
 
+    // ===== 财经数据（3篇：领先指标与板块联动） =====
+    this.addArticle({
+      title: 'A股领先指标全景图：先于股价发布的关键数据',
+      category: '财经数据',
+      content: `<h3>什么是领先指标？</h3><p>领先指标（Leading Indicators）是那些在宏观或行业基本面发生实质性变化之前就提前发出的信号。它们先于股价变动，是市场参与者的"天气预报"。</p>
+<p>与"同步指标"（如季度财报，已经发生）不同，领先指标的发布时间更早、频率更高，可以在市场主流定价之前捕捉到方向性变化。</p>
+
+<h4>一、宏观经济领先指标</h4>
+<h4>1. PMI（采购经理人指数）</h4><ul>
+<li><b>发布时间</b>：每月最后一天09:00发布当月数据</li>
+<li><b>领先于</b>：工业增加值（约2周）、GDP（约2个月）</li>
+<li><b>发布方</b>：国家统计局</li>
+<li><b>影响板块</b>：全市场，尤其是周期股（钢铁、有色、机械、化工等）</li>
+<li><b>临界值</b>：PMI > 50 说明制造业扩张，经济向好；< 50 说明收缩</li>
+</ul>
+<h4>2. 社融与信贷数据</h4><ul>
+<li><b>发布时间</b>：每月10-15日发布上月数据</li>
+<li><b>领先于</b>：GDP增速（约1-2个月）、企业盈利周期（约3个月）</li>
+<li><b>发布方</b>：中国人民银行</li>
+<li><b>影响板块</b>：银行（信贷扩张利好净息差）、建筑/地产（融资环境变化）</li>
+<li><b>关键分项</b>：新增人民币贷款、表外融资、政府债券融资</li>
+</ul>
+<h4>3. CPI/PPI（通胀数据）</h4><ul>
+<li><b>发布时间</b>：每月9-14日发布上月数据</li>
+<li><b>领先于</b>：货币政策变化（约1-2个月后央行可能调整利率/准备金率）</li>
+<li><b>发布方</b>：国家统计局</li>
+<li><b>影响板块</b>：CPI→消费/食品饮料（上游涨价传导）；PPI→化工/有色/钢铁（利润弹性最大）</li>
+<li><b>关键信号</b>：PPI-CPI剪刀差扩大→中游制造利润改善（如2020-2021年）</li>
+</ul>
+<h4>4. 社零与工业增加值</h4><ul>
+<li><b>发布时间</b>：每月15-17日发布上月数据</li>
+<li><b>领先于</b>：企业季度财报数据（约2-6周）</li>
+<li><b>发布方</b>：国家统计局</li>
+<li><b>影响板块</b>：社零→消费；工业增加值→制造/周期</li>
+</ul>
+<h4>5. 房地产数据（开工/销售/投资）</h4><ul>
+<li><b>发布时间</b>：每月15日左右（与工业增加值同步）</li>
+<li><b>领先于</b>：建材/钢铁/家电需求（约3-6个月）</li>
+<li><b>发布方</b>：国家统计局</li>
+<li><b>影响板块</b>：地产链（钢铁、水泥、玻璃、家电、家居）</li>
+</ul>
+
+<h4>二、资本市场领先指标</h4>
+<h4>6. 北上资金（沪深港通净流入）</h4><ul>
+<li><b>发布时间</b>：交易日次日公布前一日数据（东方财富有实时估算）</li>
+<li><b>领先于</b>：次日开盘方向（通常提前1-2小时定价）</li>
+<li><b>影响板块</b>：外资偏好的白马股（茅台、宁德时代、招商银行等）</li>
+</ul>
+<h4>7. 两融余额（融资融券）</h4><ul>
+<li><b>发布时间</b>：每个交易日晚间公布当日数据</li>
+<li><b>领先于</b>：短期市场情绪（杠杆资金是资金面的先行指标）</li>
+<li><b>影响板块</b>：全市场，两融余额增加→市场情绪乐观，反之悲观</li>
+</ul>
+<h4>8. 公开市场操作与LPR利率</h4><ul>
+<li><b>发布时间</b>：央行MLF操作日（每15日）、LPR（每月20日）</li>
+<li><b>领先于</b>：全市场资金成本变化（降息降准前利率变化是明确信号）</li>
+<li><b>影响板块</b>：银行（利差）、地产（融资成本）、券商（交易活跃度）</li>
+</ul>
+<h4>9. 股指期货升贴水</h4><ul>
+<li><b>发布时间</b>：每个交易日实时</li>
+<li><b>领先于</b>：现货市场方向（期货价格领先现货约5-15分钟）</li>
+<li><b>解读</b>：大幅贴水→市场预期悲观；升水→预期乐观</li>
+</ul>
+
+<h4>三、使用领先指标的方法论</h4>
+<ul>
+<li><b>组合使用</b>：单个指标可能被噪音干扰，多个指标共振信号更可靠</li>
+<li><b>季节性规律</b>：春节前物流/消费数据有季节性高估，应注意调整</li>
+<li><b>预期差</b>：数据实际值 vs 市场预期的差值（通常WIND有主流预期）才是驱动股价的关键，而非数据本身</li>
+<li><b>重视方向变化</b>：数据本身不如数据趋势重要——连续3个月改善的信号远强于单月异动</li>
+</ul>`,
+    });
+    this.addArticle({
+      title: '板块联动：行业专属先行指标与传导机制',
+      category: '财经数据',
+      content: `<h3>引言</h3><p>不同行业的股价对同一数据源的反应截然不同。例如万亿基建计划公布，对工程机械和消费电子影响天差地别。理解行业专属的先行指标，才能在数据公布前预判板块方向。</p>
+
+<h4>🏗️ 工程机械/基建</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">挖掘机销量（月度）</td><td style="padding:6px;border:1px solid var(--border-light);">每月10日左右</td><td style="padding:6px;border:1px solid var(--border-light);">领先股价2-4周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">专项债发行进度</td><td style="padding:6px;border:1px solid var(--border-light);">每周更新</td><td style="padding:6px;border:1px solid var(--border-light);">领先订单变化约1-3个月</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">基建投资额（累计同比）</td><td style="padding:6px;border:1px solid var(--border-light);">每月15日</td><td style="padding:6px;border:1px solid var(--border-light);">同步但滞后股价1周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">螺纹钢/水泥价格</td><td style="padding:6px;border:1px solid var(--border-light);">每日实时</td><td style="padding:6px;border:1px solid var(--border-light);">即时</td></tr>
+</table>
+<p><b>综合判断</b>：挖掘机销量+专项债双重确认时，是工程机械板块买入的安全信号。中联重科（000157）受基建投资和挖掘机销量影响最大。</p>
+
+<h4>🚗 新能源汽车</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">乘联会月度车市数据</td><td style="padding:6px;border:1px solid var(--border-light);">每月8-10日</td><td style="padding:6px;border:1px solid var(--border-light);">领先股价2-4周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">碳酸锂/电池级锂价格</td><td style="padding:6px;border:1px solid var(--border-light);">每日</td><td style="padding:6px;border:1px solid var(--border-light);">影响锂电成本预期</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">充电桩月度新增数</td><td style="padding:6px;border:1px solid var(--border-light);">每月12日</td><td style="padding:6px;border:1px solid var(--border-light);">充电基础设施先行</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">汽车出口数据（海关）</td><td style="padding:6px;border:1px solid var(--border-light);">每月8日</td><td style="padding:6px;border:1px solid var(--border-light);">领先股价1-2周</td></tr>
+</table>
+<p><b>综合判断</b>：销量连续2个月>20%增长+碳酸锂价格企稳=买入窗口。</p>
+
+<h4>🍶 白酒</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">飞天茅台批价</td><td style="padding:6px;border:1px solid var(--border-light);">每日</td><td style="padding:6px;border:1px solid var(--border-light);">先于其他白酒股1-2周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">社零（烟酒类）</td><td style="padding:6px;border:1px solid var(--border-light);">每月15日</td><td style="padding:6px;border:1px solid var(--border-light);">领先季报2-6周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">酒类流通协会库存数据</td><td style="padding:6px;border:1px solid var(--border-light);">每周</td><td style="padding:6px;border:1px solid var(--border-light);">库存增加=需求降温</td></tr>
+</table>
+<p><b>综合判断</b>：茅台批价是白酒行业的"金丝雀"，批价连续上涨/下跌先于公司股价2周左右。</p>
+
+<h4>🔬 半导体</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">全球半导体销售额（SIA数据）</td><td style="padding:6px;border:1px solid var(--border-light);">每月第一周</td><td style="padding:6px;border:1px solid var(--border-light);">领先A股半导体约2周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">北美半导体设备出货额</td><td style="padding:6px;border:1px solid var(--border-light);">每月20日</td><td style="padding:6px;border:1px solid var(--border-light);">领先资本开支6-9个月</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">存储芯片价格（DRAM/NAND）</td><td style="padding:6px;border:1px solid var(--border-light);">每日</td><td style="padding:6px;border:1px solid var(--border-light);">周期拐点先行信号</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">费城半导体指数（SOX）</td><td style="padding:6px;border:1px solid var(--border-light);">每个交易日</td><td style="padding:6px;border:1px solid var(--border-light);">领先A股半导体板块1-3天</td></tr>
+</table>
+<p><b>核心规律</b>：全球半导体有典型4年库存周期。SIA数据同比转正→行业进入上升期</p>
+
+<h4>🏦 银行/金融</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">LPR/MLF利率</td><td style="padding:6px;border:1px solid var(--border-light);">每月15/20日</td><td style="padding:6px;border:1px solid var(--border-light);">降息→银行净息差收窄</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">社融数据</td><td style="padding:6px;border:1px solid var(--border-light);">每月10-15日</td><td style="padding:6px;border:1px solid var(--border-light);">信贷扩张→银行利润增加</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">国债收益率曲线</td><td style="padding:6px;border:1px solid var(--border-light);">每日</td><td style="padding:6px;border:1px solid var(--border-light);">收益率陡峭化利好银行</td></tr>
+</table>
+
+<h4>☀️ 光伏/新能源</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">领先指标</th><th style="padding:8px;">发布时间</th><th style="padding:8px;">提前量</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">光伏装机量（月度）</td><td style="padding:6px;border:1px solid var(--border-light);">每月20日</td><td style="padding:6px;border:1px solid var(--border-light);">领先企业财报约2-4周</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">硅料/硅片价格</td><td style="padding:6px;border:1px solid var(--border-light);">每周更新</td><td style="padding:6px;border:1px solid var(--border-light);">价格企稳→行业见底</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">逆变器出口数据</td><td style="padding:6px;border:1px solid var(--border-light);">每月海关数据</td><td style="padding:6px;border:1px solid var(--border-light);">海外需求先行指标</td></tr>
+</table>
+
+<h4>如何在你自己的策略中应用这些指标</h4>
+<p>打开策略池 → 点击你关注的策略 → 点击「🔍 匹配」按钮查看当前符合条件的股票。同时关注上述行业领先指标的变化方向：</p>
+<ul>
+<li><b>指标连续2个月好转</b>→ 该板块进入关注区</li>
+<li><b>指标出现拐点</b>→ 如果从持续下降到首次回升，可能是底部信号</li>
+<li><b>指标与股价背离</b>→ 股价下跌但指标好转，可能是买入机会</li>
+<li><b>综合3个以上指标</b>→ 信号可靠性大幅提升</li>
+</ul>`,
+    });
+    this.addArticle({
+      title: '财经日历操作指南：如何用数据发布做交易计划',
+      category: '财经数据',
+      content: `<h3>为什么需要财经日历</h3><p>A股市场的关键数据发布有固定的时间规律。掌握这些时间点，可以提前布局，避免被"数据突袭"。数据发布当日，股价的波动幅度通常比非数据日高出30%-50%。</p>
+
+<h4>月度数据发布时间轴</h4>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">日期窗口</th><th style="padding:8px;">数据项目</th><th style="padding:8px;">提前准备</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月最后一天</td><td style="padding:6px;border:1px solid var(--border-light);">PMI（官方/财新）</td><td style="padding:6px;border:1px solid var(--border-light);">关注制造业库存周期拐点</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月8-10日</td><td style="padding:6px;border:1px solid var(--border-light);">乘联会汽车销量、海关进出口</td><td style="padding:6px;border:1px solid var(--border-light);">汽车/消费电子板块方向</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月9-14日</td><td style="padding:6px;border:1px solid var(--border-light);">CPI/PPI</td><td style="padding:6px;border:1px solid var(--border-light);">关注PPI涨幅→中游制造利润</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月10-15日</td><td style="padding:6px;border:1px solid var(--border-light);">社融/信贷数据</td><td style="padding:6px;border:1px solid var(--border-light);">银行/地产/基建方向</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月15日左右</td><td style="padding:6px;border:1px solid var(--border-light);">工业增加值、社零、房地产数据</td><td style="padding:6px;border:1px solid var(--border-light);">消费/制造/地产链</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月15日</td><td style="padding:6px;border:1px solid var(--border-light);">MLF利率（央行）</td><td style="padding:6px;border:1px solid var(--border-light);">利率方向判断</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月20日</td><td style="padding:6px;border:1px solid var(--border-light);">LPR报价</td><td style="padding:6px;border:1px solid var(--border-light);">降息预期交易</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">每月20日左右</td><td style="padding:6px;border:1px solid var(--border-light);">光伏装机量</td><td style="padding:6px;border:1px solid var(--border-light);">新能源方向</td></tr>
+</table>
+
+<h4>数据发布当日的交易策略</h4>
+<h4>1. 预期差交易法</h4>
+<p>市场在数据发布前已经形成预期（WIND、各券商研报会列出预期值）。</p>
+<ul>
+<li><b>实际 > 预期 + 5%</b>：数据超预期→买入该板块（开盘后30分钟内操作）</li>
+<li><b>实际 < 预期 - 5%</b>：数据低于预期→卖出/回避该板块</li>
+<li><b>实际 ≈ 预期</b>：小幅波动，不构成操作信号（"买预期卖事实"）</li>
+</ul>
+
+<h4>2. 东北-西南对冲法</h4>
+<p>当重要数据即将公布但方向不确定时：</p>
+<ul>
+<li>同时买入受益于"数据好"的板块 + 受益于"数据差"的板块</li>
+<li>例如PMI数据前：买入基建ETF + 买入债券ETF（PMI好→基建涨、PMI差→债券涨）</li>
+<li>数据公布后平掉不利一方</li>
+</ul>
+
+<h4>3. 数据联动链</h4>
+<p>一个数据的变化会触发连锁反应：</p>
+<p><b>PPI上涨 → 中游制造业成本上升 → 下游消费品可能涨价 → 消费股EPS预期上调</b></p>
+<p>理解这个链条，就可以在PPI数据公布后布局最远端的板块。</p>
+
+<h4>💡 实战案例</h4>
+<p><b>场景</b>：2025年12月9日，CPI数据低于预期，社融数据超预期增长。</p>
+<table style="width:100%;font-size:0.9rem;border-collapse:collapse;"><tr style="background:var(--primary);color:#fff;"><th style="padding:8px;">步骤</th><th style="padding:8px;">操作</th><th style="padding:8px;">逻辑</th></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">第一步</td><td style="padding:6px;border:1px solid var(--border-light);">判断方向</td><td style="padding:6px;border:1px solid var(--border-light);">CPI低→消费乏力、社融高→信贷需求旺</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">第二步</td><td style="padding:6px;border:1px solid var(--border-light);">对应板块</td><td style="padding:6px;border:1px solid var(--border-light);">社融好→银行、建筑、基建优先受益</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">第三步</td><td style="padding:6px;border:1px solid var(--border-light);">开盘操作</td><td style="padding:6px;border:1px solid var(--border-light);">开盘后买入银行ETF或基建龙头</td></tr>
+<tr><td style="padding:6px;border:1px solid var(--border-light);">第四步</td><td style="padding:6px;border:1px solid var(--border-light);">后续观察</td><td style="padding:6px;border:1px solid var(--border-light);">关注接下来3个月的信贷数据是否持续</td></tr>
+</table>
+
+<h4>工具推荐</h4><ul>
+<li><b>金十数据</b>（jin10.com）：财经日历最全，可设置数据发布提醒</li>
+<li><b>东方财富财经日历</b>：集成A股数据发布时间表</li>
+<li><b>WIND金融终端</b>：专业预期值查询（付费）</li>
+<li><b>同花顺i问财</b>：用自然语言查询"最新PMI数据"</li>
+</ul>`,
+    });
+
     // ===== 策略（8个） =====
 
     this.addStrategy({
