@@ -97,46 +97,56 @@ const DB = {
     return (parseFloat(t.sellPrice) - parseFloat(t.buyPrice)) * parseInt(t.shares || 1);
   },
 
-  // ===== 云同步功能 =====
+  // ===== GitHub Gist 云同步功能 =====
+  // 无需部署服务器，直接通过 GitHub API 读/写 Gist 实现跨设备同步
+  // 架构：浏览器 → api.github.com → Gist
+
+  GIST_ID: '1ce2c3043ea83285fe61630145d14bb7',
   syncEnabled: false,
-  syncUrl: '',
+  syncToken: '',
   _syncTimer: null,
 
-  enableSync(url) {
+  enableSync(token) {
     this.syncEnabled = true;
-    this.syncUrl = url;
-    localStorage.setItem(this._prefix + 'syncUrl', url);
+    this.syncToken = token;
+    localStorage.setItem(this._prefix + 'gistToken', token);
     this._syncAfterWrite();
   },
 
   disableSync() {
     this.syncEnabled = false;
-    this.syncUrl = '';
-    localStorage.removeItem(this._prefix + 'syncUrl');
+    this.syncToken = '';
+    localStorage.removeItem(this._prefix + 'gistToken');
   },
 
   isSyncEnabled() {
     return this.syncEnabled;
   },
 
-  // 从服务器加载数据（取代 localStorage 中的数据）
-  async loadFromServer() {
-    const url = localStorage.getItem(this._prefix + 'syncUrl');
-    if (!url) return;
+  // 从 Gist 加载云端数据
+  async loadFromGist() {
+    const token = localStorage.getItem(this._prefix + 'gistToken');
+    if (!token) return false;
 
-    this.syncUrl = url;
+    this.syncToken = token;
     this.syncEnabled = true;
 
     try {
-      const resp = await fetch(url + '/api/data');
-      const result = await resp.json();
-      if (result.success && result.data) {
-        const d = result.data;
+      const resp = await fetch(`https://api.github.com/gists/${this.GIST_ID}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+        }
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const gist = await resp.json();
+      const file = gist.files?.['stock-hub-data.json'];
+      if (file && file.content) {
+        const d = JSON.parse(file.content);
         const hasData = (d.articles && d.articles.length > 0)
                       || (d.strategies && d.strategies.length > 0)
                       || (d.trades && d.trades.length > 0);
         if (hasData) {
-          // 服务端有数据，以服务端为准
           if (d.articles) {
             d.articles.forEach(a => { a.updatedAt = a.updatedAt || a.createdAt; });
             this.setArticles(d.articles);
@@ -148,39 +158,47 @@ const DB = {
           }
           return true;
         }
-        // 服务端无数据，推本地数据上去
         this._syncAfterWrite();
       }
     } catch (e) {
-      console.log('同步服务器连接失败，使用本地数据');
+      console.log('GitHub Gist 连接失败:', e.message, '使用本地数据');
     }
     return false;
   },
 
-  // 数据变更后自动同步到服务器（带防抖）
+  // 数据变更后自动推送到 Gist
   _syncAfterWrite() {
-    if (!this.syncEnabled || !this.syncUrl) return;
+    if (!this.syncEnabled || !this.syncToken) return;
     clearTimeout(this._syncTimer);
     this._syncTimer = setTimeout(async () => {
       try {
-        const payload = {
+        const data = {
+          version: 1,
+          lastSyncAt: new Date().toISOString(),
           articles: this.getArticles(),
           strategies: this.getStrategies(),
           trades: this.getTrades(),
         };
-        const resp = await fetch(this.syncUrl + '/api/data', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+        const resp = await fetch(`https://api.github.com/gists/${this.GIST_ID}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${this.syncToken}`,
+            'Content-Type': 'application/json',
+            Accept: 'application/vnd.github+json',
+          },
+          body: JSON.stringify({
+            files: { 'stock-hub-data.json': { content: JSON.stringify(data) } }
+          }),
         });
-        const result = await resp.json();
-        if (result.success && window.SyncUI) {
+        if (resp.ok && window.SyncUI) {
           SyncUI.updateStatus('connected');
+        } else if (window.SyncUI) {
+          SyncUI.updateStatus('error');
         }
       } catch (e) {
         if (window.SyncUI) SyncUI.updateStatus('error');
       }
-    }, 300);
+    }, 500);
   },
 
   // 统计数据
@@ -364,12 +382,12 @@ const SyncUI = {
     document.body.appendChild(this.el);
     this.updateStatus('offline');
 
-    // 自动检测是否有已保存的同步地址
-    const savedUrl = localStorage.getItem(DB._prefix + 'syncUrl');
-    if (savedUrl) {
-      DB.syncUrl = savedUrl;
+    // 自动检测是否有已保存的 token
+    const savedToken = localStorage.getItem(DB._prefix + 'gistToken');
+    if (savedToken) {
+      DB.syncToken = savedToken;
       this.updateStatus('connecting');
-      DB.loadFromServer().then(ok => {
+      DB.loadFromGist().then(ok => {
         this.updateStatus(ok ? 'connected' : 'error');
         if (ok && window.syncOnPageReady) window.syncOnPageReady();
       });
@@ -395,40 +413,42 @@ const SyncUI = {
   },
 
   showSetup() {
-    const url = prompt('请输入同步服务器的地址：\n(运行 server.js 后显示的地址，如 http://192.168.1.100:3000)', DB.syncUrl || 'http://');
-    if (!url || url.trim() === 'http://') return;
-    const trimmed = url.trim().replace(/\/+$/, '');
+    const token = prompt(
+      '请输入你的 GitHub Token 以开启跨设备同步：\n\n（Token 仅保存在本地浏览器，不上传任何地方）',
+      ''
+    );
+    if (!token || !token.trim()) return;
+    const trimmed = token.trim();
     this.updateStatus('connecting');
-    // 先测试连接
-    fetch(trimmed + '/api/health')
-      .then(r => r.json())
-      .then(data => {
-        if (data.status === 'ok') {
-          DB.enableSync(trimmed);
-          this.updateStatus('connected');
-          DB.loadFromServer().then(() => {
-            showToast('✅ 同步已连接');
-            if (window.syncOnPageReady) window.syncOnPageReady();
-          });
-        } else {
-          throw new Error('服务返回异常');
-        }
+
+    // 验证 token：尝试读取 Gist
+    fetch(`https://api.github.com/gists/${DB.GIST_ID}`, {
+      headers: { Authorization: `Bearer ${trimmed}`, Accept: 'application/vnd.github+json' }
+    })
+      .then(async r => {
+        if (!r.ok) throw new Error('Token 无效');
+        DB.enableSync(trimmed);
+        this.updateStatus('connected');
+        showToast('✅ 同步已开启，数据自动云端同步');
+        return DB.loadFromGist();
+      })
+      .then(() => {
+        if (window.syncOnPageReady) window.syncOnPageReady();
       })
       .catch(() => {
         this.updateStatus('error');
-        showToast('❌ 无法连接同步服务器，请检查地址');
+        showToast('❌ Token 验证失败，请检查后重试');
       });
   },
 
   showSyncInfo() {
-    const info = DB.syncUrl;
     const action = confirm(
-      `📡 同步状态：已连接\n\n服务器：${info}\n\n点击「确定」断开同步\n点击「取消」关闭`
+      '📡 同步状态：已开启\n\n所有设备共享同一份数据，通过 GitHub Gist 云端存储。\n\n点击「确定」断开同步\n点击「取消」关闭'
     );
     if (action) {
       DB.disableSync();
       this.updateStatus('offline');
-      showToast('已断开同步连接');
+      showToast('已断开同步连接，使用本地数据');
     }
   },
 };
