@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>自选股 - 我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .group-tabs { display: flex; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+    .group-tab { padding: 8px 18px; border-radius: 20px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); background: var(--card-bg); border: 1px solid var(--border); transition: all 0.15s; }
+    .group-tab:hover { border-color: var(--accent); color: var(--accent); }
+    .group-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .group-tab .count { background: rgba(255,255,255,0.25); padding: 1px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 4px; }
+    .group-tab:not(.active) .count { background: var(--border-light); }
+
+    .watch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+    .watch-card { background: var(--card-bg); border-radius: var(--radius); border: 1px solid var(--border); padding: 16px; transition: box-shadow 0.2s, transform 0.2s; position: relative; }
+    .watch-card:hover { box-shadow: var(--shadow-hover); transform: translateY(-2px); }
+    .watch-card .wc-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; }
+    .watch-card .wc-name { font-size: 1.05rem; font-weight: 600; color: var(--primary); }
+    .watch-card .wc-code { font-size: 0.78rem; color: var(--text-light); margin-top: 2px; }
+    .watch-card .wc-price { text-align: right; }
+    .watch-card .wc-price .p { font-size: 1.3rem; font-weight: 700; }
+    .watch-card .wc-price .chg { font-size: 0.85rem; font-weight: 500; }
+    .watch-card .wc-price .chg.up { color: var(--danger); }
+    .watch-card .wc-price .chg.down { color: var(--success); }
+    .watch-card .wc-rows { font-size: 0.82rem; color: var(--text-secondary); margin-top: 10px; }
+    .watch-card .wc-rows .row { display: flex; justify-content: space-between; padding: 3px 0; border-bottom: 1px dashed var(--border-light); }
+    .watch-card .wc-rows .row:last-child { border: none; }
+    .watch-card .wc-rows .row .target { color: var(--accent); }
+    .watch-card .wc-rows .row .stop { color: var(--danger); }
+    .watch-card .wc-rows .row .dist { font-weight: 500; }
+    .watch-card .wc-rows .row .dist.near { color: var(--warning); }
+    .watch-card .wc-notes { font-size: 0.78rem; color: var(--text-light); margin-top: 8px; padding: 6px 10px; background: var(--bg); border-radius: var(--radius-sm); }
+    .watch-card .wc-actions { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-light); }
+    .watch-card .wc-actions button { background: none; border: none; cursor: pointer; font-size: 0.82rem; color: var(--text-light); padding: 4px 8px; border-radius: 3px; transition: all 0.15s; }
+    .watch-card .wc-actions .edit:hover { color: var(--accent); background: var(--accent-light); }
+    .watch-card .wc-actions .del:hover { color: var(--danger); background: #ffebee; }
+    .watch-card .wc-actions .alert-on { color: var(--success); }
+    .watch-card .wc-actions .alert-off { color: var(--text-light); }
+
+    .alert-badge { position: absolute; top: 8px; right: 8px; background: var(--warning); color: #fff; font-size: 0.7rem; padding: 2px 8px; border-radius: 10px; }
+
+    @media (max-width: 480px) { .watch-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📊</div>
+      <span>我的投资智库</span>
+    </div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav" id="mainNav">
+      <a href="index.html">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="portfolio.html">持仓管理</a>
+      <a href="watchlist.html" class="active">自选股</a>
+      <a href="trade.html">交易复盘</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <main class="container">
+    <div class="section-header">
+      <h2>👁️ 自选股</h2>
+      <div class="actions">
+        <button class="btn btn-outline" onclick="refreshAllPrices()">🔄 刷新行情</button>
+        <button class="btn btn-primary" onclick="openAddModal()">＋ 添加自选股</button>
+      </div>
+    </div>
+
+    <!-- 分组标签 -->
+    <div class="group-tabs" id="groupTabs"></div>
+
+    <!-- 自选股卡片网格 -->
+    <div class="watch-grid" id="watchGrid"></div>
+  </main>
+
+  <!-- 添加/编辑自选股 -->
+  <div class="modal-overlay" id="watchModal">
+    <div class="modal" style="max-width:500px;">
+      <div class="modal-header">
+        <h3 id="watchModalTitle">添加自选股</h3>
+        <button class="modal-close" onclick="closeModal('watchModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>股票名称 *</label>
+            <input type="text" id="watchStockName" placeholder="如：中联重科">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>股票代码</label>
+            <input type="text" id="watchStockCode" placeholder="如：000157">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>分组</label>
+            <select id="watchGroup">
+              <option value="核心关注">核心关注</option>
+              <option value="短线观察">短线观察</option>
+              <option value="长线跟踪">长线跟踪</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>加入时价格</label>
+            <input type="number" step="0.01" id="watchAddPrice" placeholder="7.64">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>目标价</label>
+            <input type="number" step="0.01" id="watchTargetPrice" placeholder="9.5">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>止损价</label>
+            <input type="number" step="0.01" id="watchStopLoss" placeholder="7.0">
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label>备注</label>
+          <textarea id="watchNotes" rows="2" placeholder="投资逻辑或关注理由..."></textarea>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" id="watchAlert" checked> 启用价格提醒</label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal('watchModal')">取消</button>
+        <button class="btn btn-primary" onclick="saveWatch()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提醒管理 -->
+  <div class="modal-overlay" id="alertModal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3>🔔 价格提醒</h3>
+        <button class="modal-close" onclick="closeModal('alertModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="alertList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 数据管理 -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💾 数据管理</h3>
+        <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="data-info">
+          <b>🌐 自动同步</b>：页面右下角点同步按钮，输入 GitHub Token 即可开启跨设备云同步。<br>
+          <b>📁 手动传输</b>：也可通过下方导出/导入在设备间迁移数据。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();"><span class="btn-icon">⬇️</span><br>导出数据</button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();"><span class="btn-icon">⬆️</span><br>导入数据</button>
+        </div>
+        <div class="data-warn">⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script src="js/app.js"></script>
+  <script>
+    let currentGroup = '全部';
+    let editingWatchId = null;
+    let priceCache = {};
+
+    const GROUPS = ['全部', '核心关注', '短线观察', '长线跟踪'];
+
+    // 批量获取行情
+    async function fetchBatchPrices(codes) {
+      if (!codes.length) return {};
+      const fields = 'f2,f3,f12,f14';
+      const secids = codes.map(c => (c.startsWith('6') ? '1.' : '0.') + c).join(',');
+      const url = `https://push2.eastmoney.com/api/qt/ulist.np/get?secids=${secids}&fields=${fields}&fltt=2&_=${Date.now()}`;
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), 8000);
+        const resp = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(timer);
+        const json = await resp.json();
+        (json?.data?.diff || []).forEach(s => {
+          priceCache[s.f12] = { price: parseFloat(s.f2), percent: parseFloat(s.f3) };
+        });
+      } catch(e) { console.error('行情获取失败', e); }
+      return priceCache;
+    }
+
+    async function refreshAllPrices() {
+      const list = DB.getWatchlist();
+      if (!list.length) { showToast('暂无自选股'); return; }
+      showToast('正在刷新行情...');
+      const codes = list.map(w => w.stockCode).filter(Boolean);
+      await fetchBatchPrices(codes);
+      renderWatchlist();
+      checkAlerts();
+      showToast('✅ 行情已刷新');
+    }
+
+    function renderGroupTabs() {
+      const list = DB.getWatchlist();
+      const counts = {};
+      list.forEach(w => { counts[w.group] = (counts[w.group] || 0) + 1; });
+      const tabs = document.getElementById('groupTabs');
+      tabs.innerHTML = GROUPS.map(g => {
+        const cnt = g === '全部' ? list.length : (counts[g] || 0);
+        return `<div class="group-tab ${currentGroup===g?'active':''}" onclick="selectGroup('${g}')">${g}<span class="count">${cnt}</span></div>`;
+      }).join('');
+    }
+
+    function selectGroup(g) {
+      currentGroup = g;
+      renderGroupTabs();
+      renderWatchlist();
+    }
+
+    function renderWatchlist() {
+      let list = DB.getWatchlist();
+      if (currentGroup !== '全部') list = list.filter(w => w.group === currentGroup);
+
+      const grid = document.getElementById('watchGrid');
+      if (!list.length) {
+        grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">👁️</div><p>暂无自选股</p></div>';
+        return;
+      }
+
+      grid.innerHTML = list.map(w => {
+        const price = priceCache[w.stockCode];
+        const currentPrice = price?.price || w.addPrice || 0;
+        const changePercent = price?.percent || 0;
+        const chgCls = changePercent > 0 ? 'up' : (changePercent < 0 ? 'down' : '');
+
+        // 距目标/止损距离
+        let targetDist = '—', stopDist = '—';
+        let targetCls = '', stopCls = '';
+        if (w.targetPrice && currentPrice) {
+          const d = ((w.targetPrice - currentPrice) / currentPrice * 100);
+          targetDist = (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+          targetCls = Math.abs(d) < 5 ? 'near' : '';
+        }
+        if (w.stopLossPrice && currentPrice) {
+          const d = ((currentPrice - w.stopLossPrice) / currentPrice * 100);
+          stopDist = (d > 0 ? '+' : '') + d.toFixed(1) + '%';
+          stopCls = Math.abs(d) < 5 ? 'near' : '';
+        }
+
+        const hasAlert = w.alertEnabled && (w.targetPrice || w.stopLossPrice);
+
+        return `<div class="watch-card">
+          ${hasAlert ? '<div class="alert-badge">🔔</div>' : ''}
+          <div class="wc-header">
+            <div>
+              <div class="wc-name">${w.stockName||'-'}</div>
+              <div class="wc-code">${w.stockCode||'-'}</div>
+            </div>
+            <div class="wc-price">
+              <div class="p">¥${currentPrice.toFixed(2)}</div>
+              <div class="chg ${chgCls}">${changePercent>0?'+':''}${changePercent.toFixed(2)}%</div>
+            </div>
+          </div>
+          <div class="wc-rows">
+            <div class="row"><span>目标价</span><span class="target">${w.targetPrice?'¥'+w.targetPrice:'—'}</span></div>
+            <div class="row"><span>距目标</span><span class="dist ${targetCls}">${targetDist}</span></div>
+            <div class="row"><span>止损价</span><span class="stop">${w.stopLossPrice?'¥'+w.stopLossPrice:'—'}</span></div>
+            <div class="row"><span>距止损</span><span class="dist ${stopCls}">${stopDist}</span></div>
+          </div>
+          ${w.notes ? `<div class="wc-notes">${w.notes}</div>` : ''}
+          <div class="wc-actions">
+            <button class="${w.alertEnabled?'alert-on':'alert-off'}" onclick="toggleAlert('${w.id}')" title="提醒开关">${w.alertEnabled?'🔔':'🔕'}</button>
+            <button class="edit" onclick="editWatch('${w.id}')">✏️</button>
+            <button class="del" onclick="deleteWatch('${w.id}')">🗑️</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // ===== 提醒检查 =====
+    function checkAlerts() {
+      const alerts = DB.getAlerts();
+      const watchlist = DB.getWatchlist();
+      watchlist.forEach(w => {
+        if (!w.alertEnabled || !w.stockCode) return;
+        const price = priceCache[w.stockCode]?.price;
+        if (!price) return;
+        // 检查目标价
+        if (w.targetPrice && price >= w.targetPrice) {
+          showToast(`🎯 ${w.stockName} 已达目标价 ¥${w.targetPrice}（现价 ¥${price.toFixed(2)}）`);
+          try { if (Notification.permission === 'granted') new Notification('目标价提醒', { body: `${w.stockName} 已达目标价 ¥${w.targetPrice}` }); } catch(e) {}
+        }
+        // 检查止损价
+        if (w.stopLossPrice && price <= w.stopLossPrice) {
+          showToast(`⚠️ ${w.stockName} 已跌破止损价 ¥${w.stopLossPrice}（现价 ¥${price.toFixed(2)}）`);
+          try { if (Notification.permission === 'granted') new Notification('止损提醒', { body: `${w.stockName} 已跌破止损价 ¥${w.stopLossPrice}` }); } catch(e) {}
+        }
+      });
+    }
+
+    // ===== CRUD =====
+    function openAddModal() {
+      editingWatchId = null;
+      document.getElementById('watchModalTitle').textContent = '添加自选股';
+      ['watchStockName','watchStockCode','watchAddPrice','watchTargetPrice','watchStopLoss','watchNotes'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('watchGroup').value = '核心关注';
+      document.getElementById('watchAlert').checked = true;
+      openModal('watchModal');
+      // 请求通知权限
+      if ('Notification' in window && Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function editWatch(id) {
+      const w = DB.getWatchlist().find(x => x.id === id);
+      if (!w) return;
+      editingWatchId = id;
+      document.getElementById('watchModalTitle').textContent = '编辑自选股';
+      document.getElementById('watchStockName').value = w.stockName || '';
+      document.getElementById('watchStockCode').value = w.stockCode || '';
+      document.getElementById('watchGroup').value = w.group || '核心关注';
+      document.getElementById('watchAddPrice').value = w.addPrice || '';
+      document.getElementById('watchTargetPrice').value = w.targetPrice || '';
+      document.getElementById('watchStopLoss').value = w.stopLossPrice || '';
+      document.getElementById('watchNotes').value = w.notes || '';
+      document.getElementById('watchAlert').checked = w.alertEnabled !== false;
+      openModal('watchModal');
+    }
+
+    function saveWatch() {
+      const stockName = document.getElementById('watchStockName').value.trim();
+      if (!stockName) { showToast('请输入股票名称'); return; }
+      const data = {
+        stockName,
+        stockCode: document.getElementById('watchStockCode').value.trim(),
+        group: document.getElementById('watchGroup').value,
+        addPrice: parseFloat(document.getElementById('watchAddPrice').value) || 0,
+        targetPrice: parseFloat(document.getElementById('watchTargetPrice').value) || 0,
+        stopLossPrice: parseFloat(document.getElementById('watchStopLoss').value) || 0,
+        notes: document.getElementById('watchNotes').value.trim(),
+        alertEnabled: document.getElementById('watchAlert').checked,
+      };
+      if (editingWatchId) {
+        DB.updateWatch(editingWatchId, data);
+        showToast('自选股已更新');
+      } else {
+        data.addDate = new Date().toISOString().slice(0, 10);
+        DB.addWatch(data);
+        showToast('自选股已添加');
+      }
+      closeModal('watchModal');
+      renderGroupTabs();
+      renderWatchlist();
+    }
+
+    function deleteWatch(id) {
+      if (!confirm('确定删除这只自选股吗？')) return;
+      DB.deleteWatch(id);
+      renderGroupTabs();
+      renderWatchlist();
+      showToast('已删除');
+    }
+
+    function toggleAlert(id) {
+      const w = DB.getWatchlist().find(x => x.id === id);
+      if (!w) return;
+      DB.updateWatch(id, { alertEnabled: !w.alertEnabled });
+      renderWatchlist();
+      showToast(w.alertEnabled ? '已关闭提醒' : '已开启提醒');
+    }
+
+    // 初始化
+    DB.initSampleData();
+    renderGroupTabs();
+    renderWatchlist();
+    // 自动刷新行情
+    setTimeout(refreshAllPrices, 500);
+  </script>
+</body>
+</html>
