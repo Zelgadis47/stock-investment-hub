@@ -92,6 +92,24 @@
     }
     .strategy-card .s-actions .edit:hover { color: var(--accent); background: var(--accent-light); }
     .strategy-card .s-actions .del:hover { color: var(--danger); background: #ffebee; }
+    .strategy-card .s-actions .match {
+      color: var(--accent); font-weight: 500; font-size: 0.82rem;
+      padding: 4px 10px; border: 1px solid var(--accent); border-radius: 12px;
+    }
+    .strategy-card .s-actions .match:hover { background: var(--accent); color: #fff; }
+
+    /* Match results */
+    .match-result-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .match-result-table th { background: var(--primary); color: #fff; padding: 10px 12px; text-align: left; font-weight: 500; font-size: 0.8rem; position: sticky; top: 0; z-index: 1; }
+    .match-result-table th:first-child { border-radius: var(--radius-sm) 0 0 0; }
+    .match-result-table th:last-child { border-radius: 0 var(--radius-sm) 0 0; }
+    .match-result-table td { padding: 9px 12px; border-bottom: 1px solid var(--border-light); }
+    .match-result-table tr:hover td { background: #f8fafc; }
+    .match-result-table .up { color: var(--danger); font-weight: 500; }
+    .match-result-table .down { color: var(--success); font-weight: 500; }
+
+    .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     @media (max-width: 480px) {
       .strategy-grid { grid-template-columns: 1fr; }
@@ -173,6 +191,38 @@
     </div>
   </div>
 
+  <!-- ===== 匹配股票模态框 ===== -->
+  <div class="modal-overlay" id="matchModal">
+    <div class="modal" style="max-width:780px;">
+      <div class="modal-header">
+        <h3>🔍 <span id="matchTitle">策略匹配</span></h3>
+        <button class="modal-close" onclick="closeModal('matchModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="matchLoading" style="text-align:center;padding:40px;">
+          <span class="loading-spinner"></span> 正在从市场筛选符合条件的股票...
+        </div>
+        <div id="matchResults" style="display:none;">
+          <div style="font-size:0.85rem;color:var(--text-light);margin-bottom:8px;">
+            筛选条件：<span id="matchCondition" style="color:var(--text);font-weight:500;"></span>
+          </div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:12px;">
+            数据来源：东方财富，结果仅供参考，不构成投资建议。点击行可查看详情。
+          </div>
+          <div style="max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm);">
+            <table class="match-result-table" id="matchTable">
+              <thead><tr><th>名称</th><th>代码</th><th>最新价</th><th>涨跌幅</th><th>关键指标</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="matchEmpty" class="empty-state" style="display:none;padding:24px;">
+            <div class="icon">📭</div><p>当前市场暂未找到符合条件股票</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div id="toast" class="toast"></div>
 
   <!-- ===== 数据管理模态框 ===== -->
@@ -233,6 +283,7 @@
           <div class="s-footer">
             <span>创建于 ${fmtDate(s.createdAt)}</span>
             <div class="s-actions">
+              <button class="match" onclick="event.stopPropagation();matchStrategy('${s.id}')">🔍 匹配</button>
               <button class="edit" onclick="editStrategy('${s.id}')">✏️</button>
               <button class="del" onclick="deleteStrategy('${s.id}')">🗑️</button>
             </div>
@@ -290,6 +341,171 @@
       DB.deleteStrategy(id);
       renderStrategies();
       showToast('策略已删除');
+    }
+
+    // ===== 策略匹配股票 =====
+
+    // API 调用（带缓存和超时）
+    async function fetchStockData(url, cacheKey, ttlMs = 300000) {
+      // 检查缓存
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached);
+        if (Date.now() - ts < ttlMs) return data;
+      }
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const text = await resp.text();
+        const json = JSON.parse(text);
+        const data = json?.data?.diff || [];
+        localStorage.setItem(cacheKey, JSON.stringify({ data, ts: Date.now() }));
+        return data;
+      } catch(e) { return []; }
+    }
+
+    // 格式化涨跌幅
+    function fmtPct(val) {
+      const n = parseFloat(val);
+      if (isNaN(n)) return '-';
+      const cls = n > 0 ? 'up' : (n < 0 ? 'down' : '');
+      return `<span class="${cls}">${n > 0 ? '+' : ''}${n.toFixed(2)}%</span>`;
+    }
+
+    function matchStrategy(id) {
+      const list = DB.getStrategies();
+      const s = list.find(item => item.id === id);
+      if (!s) return;
+
+      const name = s.name;
+      document.getElementById('matchTitle').textContent = name + ' — 匹配股票';
+      document.getElementById('matchCondition').textContent = s.logic || '通用筛选';
+      document.getElementById('matchLoading').style.display = 'block';
+      document.getElementById('matchResults').style.display = 'none';
+      openModal('matchModal');
+
+      doMatch(name, s.logic || '');
+    }
+
+    async function doMatch(name, logic) {
+      const keywords = (name + logic).toLowerCase();
+      let field = 'f12,f14,f2,f3'; // code,name,price,percent
+      let sortField = 'f3'; // 默认按涨跌幅排序
+      let sortType = 0; // desc
+      let market = 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23'; // 沪深A股
+      let condition = '';
+      let extraField = '';
+      let extraLabel = '';
+      let extraTransform = null;
+
+      // 根据策略分析匹配条件
+      if (keywords.includes('股息') || keywords.includes('红利')) {
+        // 高股息：筛选股息率 > 3%
+        field += ',f37'; // 股息率
+        sortField = 'f37';
+        extraLabel = '股息率';
+        extraTransform = v => (parseFloat(v) || 0).toFixed(2) + '%';
+        condition = '基于股息率排序，建议关注前20只';
+      } else if (keywords.includes('低估值') || keywords.includes('市盈率') || keywords.includes('pe')) {
+        // 低估值：按PE排序
+        field += ',f9'; // PE
+        sortField = 'f9';
+        sortType = 1; // asc
+        extraLabel = 'PE(TTM)';
+        extraTransform = v => parseFloat(v) > 0 ? parseFloat(v).toFixed(1) : '—';
+        condition = 'PE由低到高排列，仅显示盈利公司';
+      } else if (keywords.includes('roi') || keywords.includes('roe') || keywords.includes('净资产')) {
+        // 高ROE
+        field += ',f37,f9'; // dividend, PE
+        extraField = 'f37';
+        extraLabel = 'ROE参考';
+        condition = 'ROE数据有限，建议结合个股深度分析';
+      } else if (keywords.includes('突破') || keywords.includes('新高')) {
+        // 突破：找接近52周高点
+        sortField = 'f3';
+        extraLabel = '接近高点';
+        condition = '短期强势股，注意追高风险';
+      } else if (keywords.includes('趋势') || keywords.includes('均线') || keywords.includes('上升')) {
+        // 趋势跟踪
+        sortField = 'f8'; // 换手率
+        extraField = 'f8';
+        extraLabel = '换手率';
+        extraTransform = v => parseFloat(v).toFixed(2) + '%';
+        condition = '活跃的上升趋势股，换手率反映市场关注度';
+      } else if (keywords.includes('超预期') || keywords.includes('财报') || keywords.includes('营收')) {
+        // 业绩超预期 → 找近期强势股（市场已定价预期）
+        sortField = 'f3';
+        extraLabel = '市场表现';
+        condition = '近期强势股（市场已反映超预期），财报季建议结合公告验证';
+      } else if (keywords.includes('网格') || keywords.includes('etf')) {
+        // ETF
+        market = 'b:MK0021,b:MK0022,b:MK0023,b:MK0354'; // ETF市场
+        sortField = 'f8'; // 换手率
+        extraField = 'f8';
+        extraLabel = '换手率';
+        extraTransform = v => parseFloat(v).toFixed(2) + '%';
+        condition = '高流动性ETF，适合网格交易';
+      } else if (keywords.includes('板块') || keywords.includes('轮动')) {
+        sortField = 'f3';
+        extraLabel = '板块动向';
+        condition = '近期资金流入板块的龙头个股';
+      } else {
+        // 默认：市场热度
+        extraLabel = '涨跌幅';
+        extraTransform = v => (parseFloat(v) > 0 ? '+' : '') + parseFloat(v).toFixed(2) + '%';
+        condition = '默认筛选市场活跃个股';
+      }
+
+      const apiUrl = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=${sortType}&np=1&fltt=2&invt=2&fid=${sortField}&fs=${market}&fields=${field}&_=${Date.now()}`;
+
+      try {
+        const stocks = await fetchStockData(apiUrl, 'stock_cache_' + sortField, 120000);
+
+        document.getElementById('matchLoading').style.display = 'none';
+        document.getElementById('matchResults').style.display = 'block';
+
+        if (!stocks || stocks.length === 0) {
+          document.getElementById('matchTable').querySelector('tbody').innerHTML = '';
+          document.getElementById('matchEmpty').style.display = 'block';
+          return;
+        }
+
+        document.getElementById('matchEmpty').style.display = 'none';
+        const tbody = document.getElementById('matchTable').querySelector('tbody');
+
+        tbody.innerHTML = stocks.filter(s => {
+          // 过滤：PE为负的低估值策略
+          if (keywords.includes('低估值') && parseFloat(s.f9) <= 0) return false;
+          return true;
+        }).slice(0, 20).map(s => {
+          const code = s.f12 || '';
+          const name = s.f14 || '';
+          const price = parseFloat(s.f2).toFixed(2);
+          const pct = s.f3;
+          const marketTag = code.startsWith('6') ? 'sh' : 'sz';
+          const url = `https://quote.eastmoney.com/${marketTag}${code}.html`;
+
+          let extra = '';
+          if (extraTransform) {
+            const val = s[extraField || sortField];
+            if (val !== undefined) extra = extraTransform(val);
+          } else if (extraLabel === 'PE(TTM)') {
+            extra = extraTransform ? extraTransform(s.f9) : (parseFloat(s.f9) > 0 ? parseFloat(s.f9).toFixed(1) : '—');
+          } else {
+            extra = fmtPct(pct);
+          }
+
+          return `<tr style="cursor:pointer;" onclick="window.open('${url}','_blank')" title="点击打开东方财富详情">
+            <td><strong>${name}</strong></td>
+            <td style="font-size:0.8rem;color:var(--text-light);">${code}</td>
+            <td>${price}</td>
+            <td>${fmtPct(pct)}</td>
+            <td style="font-size:0.85rem;">${extra}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) {
+        document.getElementById('matchLoading').innerHTML = '<p style="color:var(--danger);">❌ 数据获取失败，请稍后重试</p>';
+      }
     }
 
     // ---- 初始化 ----
