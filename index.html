@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>我的投资智库</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- ===== Header ===== -->
+  <header class="header">
+    <div class="logo">
+      <div class="icon">📊</div>
+      <span>我的投资智库</span>
+    </div>
+    <button class="hamburger" aria-label="菜单">☰</button>
+    <nav class="nav">
+      <a href="index.html" class="active">首页</a>
+      <a href="knowledge.html">知识库</a>
+      <a href="strategy.html">策略池</a>
+      <a href="trade.html">交易复盘</a>
+    </nav>
+    <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
+  </header>
+
+  <!-- ===== Main Content ===== -->
+  <main class="container" id="app">
+    <!-- Stats Cards -->
+    <div class="stats-grid" id="statsGrid">
+      <div class="stat-card">
+        <div class="label">知识文章总数</div>
+        <div class="value" id="statArticles">0</div>
+        <div class="icon-bg">📚</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">策略总数</div>
+        <div class="value" id="statStrategies">0</div>
+        <div class="icon-bg">📋</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">交易记录数</div>
+        <div class="value" id="statTrades">0</div>
+        <div class="icon-bg">📈</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">当前关注股票数</div>
+        <div class="value" id="statStocks">0</div>
+        <div class="icon-bg">🎯</div>
+      </div>
+    </div>
+
+    <!-- Recent Updates -->
+    <section>
+      <div class="section-header">
+        <h2>最近更新</h2>
+        <div class="actions">
+          <a href="knowledge.html" class="btn btn-outline btn-sm">查看全部</a>
+        </div>
+      </div>
+      <div class="card" style="padding:0;">
+        <div id="recentList" style="min-height:60px;"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- ===== 数据管理模态框 ===== -->
+  <div class="modal-overlay" id="dataModal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3>💾 数据管理</h3>
+        <button class="modal-close" onclick="closeModal('dataModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <p class="data-info">
+          <b>🌐 自动同步</b>：页面右下角有同步状态指示器，点击可配置同步服务器地址。<br>
+          <b>📁 手动传输</b>：如不使用同步服务器，可通过下方导出/导入迁移数据。
+        </p>
+        <div class="data-actions">
+          <button class="btn btn-primary" onclick="closeModal('dataModal');exportAllData();">
+            <span class="btn-icon">⬇️</span><br>导出数据
+          </button>
+          <button class="btn btn-outline" onclick="closeModal('dataModal');importAllData();">
+            <span class="btn-icon">⬆️</span><br>导入数据
+          </button>
+        </div>
+        <div class="data-warn">
+          ⚠️ 导入数据将覆盖当前设备上的所有数据，建议先导出备份再导入。
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/app.js"></script>
+  <script>
+    function renderDashboard() {
+      // 初始化示例数据
+      DB.initSampleData();
+
+      const stats = DB.getStats();
+      document.getElementById('statArticles').textContent = stats.articleCount;
+      document.getElementById('statStrategies').textContent = stats.strategyCount;
+      document.getElementById('statTrades').textContent = stats.tradeCount;
+      document.getElementById('statStocks').textContent = stats.stockCount;
+
+      const list = document.getElementById('recentList');
+      if (stats.recentUpdates.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>还没有内容，快去添加吧</p></div>';
+        return;
+      }
+      let html = '<div style="padding:4px 0;">';
+      stats.recentUpdates.forEach(item => {
+        let badge = '';
+        let link = '';
+        if (item.type === 'article') {
+          badge = '<span style="background:#e3f2fd;color:#1565c0;padding:2px 10px;border-radius:10px;font-size:0.78rem;">知识</span>';
+          link = 'knowledge.html';
+        } else {
+          badge = '<span style="background:#f3e5f5;color:#7b1fa2;padding:2px 10px;border-radius:10px;font-size:0.78rem;">策略</span>';
+          link = 'strategy.html';
+        }
+        const catTag = item.category
+          ? `<span style="color:var(--text-light);font-size:0.78rem;margin-left:6px;">${item.category}</span>`
+          : '';
+        html += `<a href="${link}" style="display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--border-light);transition:background 0.15s;text-decoration:none;color:var(--text);">
+          <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;">
+            ${badge}${catTag}
+            <span style="font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${item.title}</span>
+          </div>
+          <span style="color:var(--text-light);font-size:0.8rem;white-space:nowrap;margin-left:12px;">${fmtDateTime(item.time)}</span>
+        </a>`;
+      });
+      html += '</div>';
+      list.innerHTML = html;
+    }
+    renderDashboard();
+  </script>
+</body>
+</html>
