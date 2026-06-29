@@ -84,12 +84,13 @@ button, input, select, textarea {
 }
 .nav a {
   color: rgba(255,255,255,0.7);
-  padding: 8px 16px;
+  padding: 8px 12px;
   border-radius: var(--radius-sm);
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 500;
   transition: all 0.2s;
   position: relative;
+  white-space: nowrap;
 }
 .nav a:hover, .nav a.active {
   color: #fff;
