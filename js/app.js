@@ -1,5 +1,129 @@
 /* ===== app.js - 共享工具与全局逻辑 ===== */
 
+// ===== 密码保护 =====
+(function() {
+  // 密码的 SHA-256 哈希值。修改密码：在控制台执行 sha256('你的新密码') 得到哈希值替换这里
+  const PASSWORD_HASH = 'c93d6cc92c3b9e15325040a94a2040e75453095b8a666d5ddc9222e616b1db7e';
+  const SALT = 'stock-hub-2026';
+  const AUTH_KEY = 'stockHub_auth';
+  const AUTH_EXPIRY = 30 * 24 * 3600 * 1000; // 30 天
+
+  // SHA-256 实现（纯 JS，无需外部库）
+  function sha256(str) {
+    function rotr(x, n) { return (x >>> n) | (x << (32 - n)); }
+    function ch(x, y, z) { return (x & y) ^ (~x & z); }
+    function maj(x, y, z) { return (x & y) ^ (x & z) ^ (y & z); }
+    function sigma0(x) { return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22); }
+    function sigma1(x) { return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25); }
+    function gamma0(x) { return rotr(x, 7) ^ rotr(x, 18) ^ (x >>> 3); }
+    function gamma1(x) { return rotr(x, 17) ^ rotr(x, 19) ^ (x >>> 10); }
+    const K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+      0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+      0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+      0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+      0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+      0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+      0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+      0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+    const bytes = new TextEncoder().encode(str);
+    const bitLen = bytes.length * 8;
+    const padded = new Uint8Array(Math.ceil((bytes.length + 9) / 64) * 64);
+    padded.set(bytes);
+    padded[bytes.length] = 0x80;
+    const dv = new DataView(padded.buffer);
+    dv.setUint32(padded.length - 4, bitLen, false);
+    let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+    for (let i = 0; i < padded.length; i += 64) {
+      const W = new Uint32Array(64);
+      for (let j = 0; j < 16; j++) W[j] = dv.getUint32(i + j * 4, false);
+      for (let j = 16; j < 64; j++) W[j] = (gamma1(W[j-2]) + W[j-7] + gamma0(W[j-15]) + W[j-16]) >>> 0;
+      let [a,b,c,d,e,f,g,h] = H;
+      for (let j = 0; j < 64; j++) {
+        const T1 = (h + sigma1(e) + ch(e,f,g) + K[j] + W[j]) >>> 0;
+        const T2 = (sigma0(a) + maj(a,b,c)) >>> 0;
+        h = g; g = f; f = e; e = (d + T1) >>> 0; d = c; c = b; b = a; a = (T1 + T2) >>> 0;
+      }
+      H = H.map((v, j) => (v + [a,b,c,d,e,f,g,h][j]) >>> 0);
+    }
+    return H.map(v => v.toString(16).padStart(8, '0')).join('');
+  }
+
+  // 生成 auth token
+  function createToken() {
+    return sha256(Date.now().toString() + Math.random().toString(36) + SALT);
+  }
+
+  // 验证 token
+  function isValidToken() {
+    try {
+      const data = JSON.parse(localStorage.getItem(AUTH_KEY));
+      if (data && data.expiry > Date.now()) return true;
+    } catch(e) {}
+    return false;
+  }
+
+  // 保存 token
+  function saveToken() {
+    localStorage.setItem(AUTH_KEY, JSON.stringify({
+      token: createToken(),
+      expiry: Date.now() + AUTH_EXPIRY,
+    }));
+  }
+
+  // 检查是否需要登录
+  if (isValidToken()) {
+    window._authDone = true;
+  } else {
+    // 显示登录界面
+    window._authDone = false;
+    document.addEventListener('DOMContentLoaded', function() {
+      // 隐藏内容区域
+      document.body.style.overflow = 'hidden';
+
+      const overlay = document.createElement('div');
+      overlay.id = 'loginOverlay';
+      overlay.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--primary);">
+          <div style="background:var(--card-bg);padding:40px;border-radius:var(--radius);text-align:center;max-width:380px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+            <div style="font-size:2.5rem;margin-bottom:8px;">🔐</div>
+            <h2 style="margin-bottom:4px;color:var(--primary);">我的投资智库</h2>
+            <p style="font-size:0.85rem;color:var(--text-light);margin-bottom:24px;">请输入密码访问</p>
+            <input type="password" id="loginPwd" placeholder="输入密码" style="width:100%;padding:10px 14px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:1rem;text-align:center;margin-bottom:6px;" onkeydown="if(event.key==='Enter')doLogin()">
+            <div id="loginError" style="color:var(--danger);font-size:0.82rem;height:20px;margin-bottom:8px;"></div>
+            <button onclick="doLogin()" style="width:100%;padding:10px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-size:1rem;font-weight:500;cursor:pointer;">登 录</button>
+          </div>
+        </div>
+      `;
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:10000;';
+      document.body.appendChild(overlay);
+
+      setTimeout(() => document.getElementById('loginPwd')?.focus(), 200);
+    });
+  }
+
+  // 登录函数
+  window.doLogin = function() {
+    const pwd = document.getElementById('loginPwd').value;
+    const hash = sha256(pwd + SALT);
+    const errEl = document.getElementById('loginError');
+
+    if (hash === PASSWORD_HASH) {
+      saveToken();
+      const overlay = document.getElementById('loginOverlay');
+      if (overlay) overlay.remove();
+      document.body.style.overflow = '';
+      window._authDone = true;
+      // 触发页面重新初始化
+      if (window.SyncUI) SyncUI.init();
+      location.reload();
+    } else {
+      errEl.textContent = '密码错误，请重试';
+      document.getElementById('loginPwd').value = '';
+      document.getElementById('loginPwd').focus();
+    }
+  };
+})();
+
 // ---- 数据存储工具 ----
 const DB = {
   _prefix: 'stockHub_',
