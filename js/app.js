@@ -3,7 +3,7 @@
 // ===== 密码保护 =====
 (function() {
   // 密码的 SHA-256 哈希值。修改密码：在控制台执行 sha256('你的新密码') 得到哈希值替换这里
-  const PASSWORD_HASH = 'c93d6cc92c3b9e15325040a94a2040e75453095b8a666d5ddc9222e616b1db7e';
+  const PASSWORD_HASH = 'efab9fdc944a9ad8f7a8749878fee6e3d50c1fb2c267df164a551bc1327f326f';
   const SALT = 'stock-hub-2026';
   const AUTH_KEY = 'stockHub_auth';
   const AUTH_EXPIRY = 30 * 24 * 3600 * 1000; // 30 天
