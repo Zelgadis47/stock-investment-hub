@@ -269,7 +269,10 @@ const DB = {
         const d = JSON.parse(file.content);
         const hasData = (d.articles && d.articles.length > 0)
                       || (d.strategies && d.strategies.length > 0)
-                      || (d.trades && d.trades.length > 0);
+                      || (d.trades && d.trades.length > 0)
+                      || (d.snapshots && d.snapshots.length > 0)
+                      || (d.watchlist && d.watchlist.length > 0)
+                      || (d.alerts && d.alerts.length > 0);
         if (hasData) {
           if (d.articles) {
             d.articles.forEach(a => { a.updatedAt = a.updatedAt || a.createdAt; });
@@ -277,9 +280,17 @@ const DB = {
           }
           if (d.strategies) this.setStrategies(d.strategies);
           if (d.trades) {
-            d.trades.forEach(t => { t.profit = this._calcProfit(t); });
+            d.trades.forEach(t => {
+              t.profit = this._calcProfit(t);
+              if (!t.tags) t.tags = [];
+              if (t.rating === undefined) t.rating = 0;
+              if (!t.strategy) t.strategy = '';
+            });
             this.setTrades(d.trades);
           }
+          if (d.snapshots) this.setSnapshots(d.snapshots);
+          if (d.watchlist) this.setWatchlist(d.watchlist);
+          if (d.alerts) this.setAlerts(d.alerts);
           return true;
         }
         this._syncAfterWrite();
@@ -297,11 +308,14 @@ const DB = {
     this._syncTimer = setTimeout(async () => {
       try {
         const data = {
-          version: 1,
+          version: 2,
           lastSyncAt: new Date().toISOString(),
           articles: this.getArticles(),
           strategies: this.getStrategies(),
           trades: this.getTrades(),
+          snapshots: this.getSnapshots(),
+          watchlist: this.getWatchlist(),
+          alerts: this.getAlerts(),
         };
         const resp = await fetch(`https://api.github.com/gists/${this.GIST_ID}`, {
           method: 'PATCH',
@@ -325,19 +339,96 @@ const DB = {
     }, 500);
   },
 
+  // ===== 持仓快照 =====
+  getSnapshots() { return this.get('snapshots') || []; },
+  setSnapshots(arr) { this.set('snapshots', arr); },
+  addSnapshot(s) {
+    const list = this.getSnapshots();
+    s.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    s.createdAt = new Date().toISOString();
+    // 同日覆盖：删除同 date 的旧快照
+    const filtered = list.filter(x => x.date !== s.date);
+    filtered.unshift(s);
+    filtered.sort((a, b) => new Date(b.date) - new Date(a.date));
+    this.setSnapshots(filtered);
+    return s;
+  },
+  deleteSnapshot(id) {
+    this.setSnapshots(this.getSnapshots().filter(s => s.id !== id));
+  },
+  getLatestSnapshot() {
+    const list = this.getSnapshots();
+    return list.length > 0 ? list[0] : null;
+  },
+
+  // ===== 自选股 =====
+  getWatchlist() { return this.get('watchlist') || []; },
+  setWatchlist(arr) { this.set('watchlist', arr); },
+  addWatch(w) {
+    const list = this.getWatchlist();
+    w.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    w.createdAt = new Date().toISOString();
+    list.unshift(w);
+    this.setWatchlist(list);
+    return w;
+  },
+  updateWatch(id, data) {
+    const list = this.getWatchlist();
+    const idx = list.findIndex(w => w.id === id);
+    if (idx < 0) return null;
+    Object.assign(list[idx], data);
+    this.setWatchlist(list);
+    return list[idx];
+  },
+  deleteWatch(id) {
+    this.setWatchlist(this.getWatchlist().filter(w => w.id !== id));
+  },
+
+  // ===== 提醒 =====
+  getAlerts() { return this.get('alerts') || []; },
+  setAlerts(arr) { this.set('alerts', arr); },
+  addAlert(a) {
+    const list = this.getAlerts();
+    a.id = Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+    a.createdAt = new Date().toISOString();
+    a.triggered = false;
+    a.triggeredAt = '';
+    list.unshift(a);
+    this.setAlerts(list);
+    return a;
+  },
+  updateAlert(id, data) {
+    const list = this.getAlerts();
+    const idx = list.findIndex(a => a.id === id);
+    if (idx < 0) return null;
+    Object.assign(list[idx], data);
+    this.setAlerts(list);
+    return list[idx];
+  },
+  deleteAlert(id) {
+    this.setAlerts(this.getAlerts().filter(a => a.id !== id));
+  },
+
   // 统计数据
   getStats() {
     const articles = this.getArticles();
     const strategies = this.getStrategies();
     const trades = this.getTrades();
-    // 关注股票数（从交易记录中提取唯一股票）
+    const watchlist = this.getWatchlist();
+    const alerts = this.getAlerts();
+    const snapshots = this.getSnapshots();
+    // 关注股票数（从交易记录和自选股中提取唯一股票）
     const stockSet = new Set();
     trades.forEach(t => { if (t.stockName) stockSet.add(t.stockName); });
+    watchlist.forEach(w => { if (w.stockName) stockSet.add(w.stockName); });
     return {
       articleCount: articles.length,
       strategyCount: strategies.length,
       tradeCount: trades.length,
       stockCount: stockSet.size,
+      watchlistCount: watchlist.length,
+      alertCount: alerts.filter(a => !a.triggered).length,
+      snapshotCount: snapshots.length,
       recentUpdates: [
         ...articles.map(a => ({ type: 'article', title: a.title, time: a.updatedAt, category: a.category })),
         ...strategies.map(s => ({ type: 'strategy', title: s.name, time: s.createdAt })),
@@ -574,17 +665,95 @@ const DB = {
       sellDate: '2025-09-15', sellPrice: 310,
       notes: '新能源车月度销量数据持续超预期，叠加新品上市催化。持有约2.5个月获利15.7%。正确的判断：龙头企业销量数据是定性买入的核心依据。',
     });
+
+    // ===== 持仓快照（最近 30 天模拟数据） =====
+    if (this.getSnapshots().length === 0) {
+      const today = new Date();
+      const stocks = [
+        { stockName: '中联重科', stockCode: '000157', shares: 1000, costPrice: 7.64, industry: '工程机械' },
+        { stockName: '贵州茅台', stockCode: '600519', shares: 100, costPrice: 1850, industry: '白酒' },
+        { stockName: '比亚迪', stockCode: '002594', shares: 150, costPrice: 268, industry: '汽车' },
+        { stockName: '科大讯飞', stockCode: '002230', shares: 500, costPrice: 48.5, industry: '软件' },
+      ];
+      // 生成最近30天的快照（净值围绕初始值波动上升）
+      let baseValue = 480000;
+      for (let i = 30; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        // 跳过周末
+        if (d.getDay() === 0 || d.getDay() === 6) continue;
+        const dateStr = d.toISOString().slice(0, 10);
+        // 模拟波动：整体上升约 5%，日波动 ±1.5%
+        const trend = (30 - i) * 800;
+        const noise = (Math.random() - 0.45) * 8000;
+        const totalAssets = baseValue + trend + noise;
+        const cash = 50000 + (Math.random() - 0.5) * 5000;
+        const positions = stocks.map(s => {
+          const priceBase = s.costPrice * (1 + (30 - i) * 0.002 + (Math.random() - 0.45) * 0.03);
+          const marketValue = priceBase * s.shares;
+          const profitLoss = (priceBase - s.costPrice) * s.shares;
+          return {
+            stockName: s.stockName,
+            stockCode: s.stockCode,
+            shares: s.shares,
+            costPrice: s.costPrice,
+            currentPrice: parseFloat(priceBase.toFixed(2)),
+            marketValue: parseFloat(marketValue.toFixed(2)),
+            industry: s.industry,
+            profitLoss: parseFloat(profitLoss.toFixed(2)),
+            profitLossRate: parseFloat(((priceBase / s.costPrice - 1) * 100).toFixed(2)),
+            weight: parseFloat(((marketValue / totalAssets) * 100).toFixed(2)),
+          };
+        });
+        this.addSnapshot({
+          date: dateStr,
+          totalAssets: parseFloat(totalAssets.toFixed(2)),
+          cash: parseFloat(cash.toFixed(2)),
+          positions,
+        });
+      }
+    }
+
+    // ===== 自选股（8只） =====
+    if (this.getWatchlist().length === 0) {
+      const watchStocks = [
+        { stockName: '中联重科', stockCode: '000157', group: '核心关注', addPrice: 7.64, targetPrice: 9.5, stopLossPrice: 7.0, notes: '低估值工程机械龙头，长期持有' },
+        { stockName: '宁德时代', stockCode: '300750', group: '短线观察', addPrice: 245, targetPrice: 280, stopLossPrice: 225, notes: '关注锂电价格战拐点' },
+        { stockName: '贵州茅台', stockCode: '600519', group: '核心关注', addPrice: 1850, targetPrice: 2100, stopLossPrice: 1750, notes: '白酒龙头，消费复苏受益' },
+        { stockName: '比亚迪', stockCode: '002594', group: '核心关注', addPrice: 268, targetPrice: 320, stopLossPrice: 250, notes: '新能源车销量持续超预期' },
+        { stockName: '科大讯飞', stockCode: '002230', group: '短线观察', addPrice: 48.5, targetPrice: 60, stopLossPrice: 45, notes: 'AI概念，关注商业化进展' },
+        { stockName: '海康威视', stockCode: '002415', group: '长线跟踪', addPrice: 32, targetPrice: 40, stopLossPrice: 28, notes: '安防龙头，海外业务回暖' },
+        { stockName: '招商银行', stockCode: '600036', group: '长线跟踪', addPrice: 35, targetPrice: 42, stopLossPrice: 32, notes: '银行龙头，高股息' },
+        { stockName: '中国平安', stockCode: '601318', group: '长线跟踪', addPrice: 48, targetPrice: 58, stopLossPrice: 44, notes: '保险龙头，估值修复' },
+      ];
+      const today = new Date().toISOString().slice(0, 10);
+      watchStocks.forEach(w => {
+        this.addWatch({ ...w, addDate: today, alertEnabled: true });
+      });
+    }
+
+    // ===== 提醒（5条） =====
+    if (this.getAlerts().length === 0) {
+      this.addAlert({ stockCode: '000157', stockName: '中联重科', type: 'price_up', condition: '突破', threshold: 9.0, desc: '中联重科突破9元目标价' });
+      this.addAlert({ stockCode: '000157', stockName: '中联重科', type: 'price_down', condition: '跌破', threshold: 7.0, desc: '中联重科跌破7元止损线' });
+      this.addAlert({ stockCode: '600519', stockName: '贵州茅台', type: 'price_up', condition: '突破', threshold: 2000, desc: '茅台突破2000元' });
+      this.addAlert({ stockCode: '300750', stockName: '宁德时代', type: 'price_down', condition: '跌破', threshold: 220, desc: '宁德时代跌破220' });
+      this.addAlert({ stockCode: '002594', stockName: '比亚迪', type: 'price_up', condition: '突破', threshold: 320, desc: '比亚迪突破320目标价' });
+    }
   },
 };
 
 // ---- 数据导出 / 导入 ----
 DB.exportAll = function() {
   return JSON.stringify({
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     articles: this.getArticles(),
     strategies: this.getStrategies(),
     trades: this.getTrades(),
+    snapshots: this.getSnapshots(),
+    watchlist: this.getWatchlist(),
+    alerts: this.getAlerts(),
   }, null, 2);
 };
 
@@ -595,16 +764,25 @@ DB.importAll = function(jsonStr) {
     if (data.articles) this.setArticles(data.articles);
     if (data.strategies) this.setStrategies(data.strategies);
     if (data.trades) {
-      // 重新计算盈亏
+      // 兼容旧数据：补全新字段
       data.trades.forEach(t => {
         t.profit = this._calcProfit(t);
+        if (!t.tags) t.tags = [];
+        if (t.rating === undefined) t.rating = 0;
+        if (!t.strategy) t.strategy = '';
       });
       this.setTrades(data.trades);
     }
+    if (data.snapshots) this.setSnapshots(data.snapshots);
+    if (data.watchlist) this.setWatchlist(data.watchlist);
+    if (data.alerts) this.setAlerts(data.alerts);
     return { success: true, counts: {
       articles: (data.articles || []).length,
       strategies: (data.strategies || []).length,
       trades: (data.trades || []).length,
+      snapshots: (data.snapshots || []).length,
+      watchlist: (data.watchlist || []).length,
+      alerts: (data.alerts || []).length,
     }};
   } catch (e) {
     return { success: false, error: e.message };
