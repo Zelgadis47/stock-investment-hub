@@ -159,6 +159,9 @@
       <a href="portfolio.html">持仓管理</a>
       <a href="watchlist.html">自选股</a>
       <a href="trade.html" class="active">交易复盘</a>
+      <a href="diary.html">日记</a>
+      <a href="news.html">资讯</a>
+      <a href="risk.html">风控</a>
     </nav>
     <button class="btn-data" onclick="openModal('dataModal')" title="数据管理">💾</button>
   </header>
@@ -196,10 +199,36 @@
       </div>
     </div>
 
-    <!-- ===== Search ===== -->
+    <!-- ===== Search & Filter ===== -->
     <div class="filter-bar">
       <input type="text" id="tradeSearch" placeholder="按股票名称搜索…" oninput="renderTrades()">
+      <select id="tagFilter" onchange="renderTrades()">
+        <option value="">全部标签</option>
+        <option value="追涨">追涨</option>
+        <option value="抄底">抄底</option>
+        <option value="止损">止损</option>
+        <option value="止盈">止盈</option>
+        <option value="情绪化">情绪化</option>
+        <option value="纪律">纪律</option>
+        <option value="短线">短线</option>
+        <option value="中线">中线</option>
+        <option value="长线">长线</option>
+        <option value="破位">破位</option>
+        <option value="突破">突破</option>
+        <option value="财报驱动">财报驱动</option>
+      </select>
+      <select id="ratingFilter" onchange="renderTrades()">
+        <option value="0">全部评级</option>
+        <option value="5">⭐⭐⭐⭐⭐</option>
+        <option value="4">⭐⭐⭐⭐+</option>
+        <option value="3">⭐⭐⭐+</option>
+        <option value="2">⭐⭐+</option>
+        <option value="1">⭐+</option>
+      </select>
     </div>
+
+    <!-- ===== Tag Stats Panel ===== -->
+    <div class="card" id="tagStatsCard" style="padding:16px;margin-bottom:16px;display:none;"></div>
 
     <!-- ===== Table ===== -->
     <div class="card" style="padding:0;">
@@ -216,6 +245,8 @@
               <th>卖出价格</th>
               <th>盈亏</th>
               <th>盈亏率</th>
+              <th>标签</th>
+              <th>评级</th>
               <th>复盘笔记</th>
               <th>操作</th>
             </tr>
@@ -275,6 +306,22 @@
         <div class="form-group" style="margin-top:12px;">
           <label>复盘笔记</label>
           <textarea id="tradeNotes" rows="3" placeholder="记录买入/卖出的原因和感悟…"></textarea>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>标签（可多选）</label>
+            <div id="tradeTagsContainer" style="display:flex;flex-wrap:wrap;gap:6px;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);min-height:40px;"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>自评星级（这笔操作执行得如何）</label>
+            <div id="tradeRatingStars" style="display:flex;gap:4px;padding:10px;border:1px solid var(--border);border-radius:var(--radius-sm);">
+              <span data-r="1" style="cursor:pointer;font-size:1.4rem;">☆</span>
+              <span data-r="2" style="cursor:pointer;font-size:1.4rem;">☆</span>
+              <span data-r="3" style="cursor:pointer;font-size:1.4rem;">☆</span>
+              <span data-r="4" style="cursor:pointer;font-size:1.4rem;">☆</span>
+              <span data-r="5" style="cursor:pointer;font-size:1.4rem;">☆</span>
+            </div>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
@@ -361,6 +408,49 @@
   <script>
     let editingTradeId = null;
     let analysisOpen = false;
+    let selectedTags = [];
+    let selectedRating = 0;
+
+    const TRADE_TAGS = ['追涨','抄底','止损','止盈','情绪化','纪律','短线','中线','长线','破位','突破','财报驱动'];
+    const TAG_COLORS = {
+      '追涨':'#ff1744','抄底':'#00c853','止损':'#ff1744','止盈':'#00c853',
+      '情绪化':'#7b1fa2','纪律':'#1565c0','短线':'#ffab00','中线':'#1e88e5',
+      '长线':'#00897b','破位':'#ff1744','突破':'#00c853','财报驱动':'#f57c00',
+    };
+
+    function renderTagSelector() {
+      const c = document.getElementById('tradeTagsContainer');
+      c.innerHTML = TRADE_TAGS.map(t => {
+        const active = selectedTags.includes(t);
+        const color = TAG_COLORS[t] || '#666';
+        return `<span onclick="toggleTag('${t}')" style="padding:3px 10px;border-radius:12px;font-size:0.78rem;cursor:pointer;transition:all 0.15s;
+          background:${active?color:'#f0f2f5'};color:${active?'#fff':color};border:1px solid ${active?color:'#ddd'};">${t}</span>`;
+      }).join('');
+    }
+
+    function toggleTag(t) {
+      const i = selectedTags.indexOf(t);
+      if (i >= 0) selectedTags.splice(i, 1);
+      else selectedTags.push(t);
+      renderTagSelector();
+    }
+
+    function renderRatingStars() {
+      document.querySelectorAll('#tradeRatingStars span').forEach(s => {
+        const r = parseInt(s.dataset.r);
+        s.textContent = r <= selectedRating ? '⭐' : '☆';
+        s.style.opacity = r <= selectedRating ? '1' : '0.5';
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('#tradeRatingStars span').forEach(s => {
+        s.addEventListener('click', () => {
+          selectedRating = parseInt(s.dataset.r);
+          renderRatingStars();
+        });
+      });
+    });
 
     // ---- 实时预览盈亏 ----
     function previewProfit() {
@@ -390,14 +480,19 @@
     // ---- 渲染 ----
     function renderTrades() {
       const keyword = document.getElementById('tradeSearch').value.trim().toLowerCase();
+      const tagFilter = document.getElementById('tagFilter').value;
+      const ratingFilter = parseInt(document.getElementById('ratingFilter').value);
       let list = DB.getTrades();
       if (keyword) list = list.filter(t => t.stockName && t.stockName.toLowerCase().includes(keyword));
+      if (tagFilter) list = list.filter(t => (t.tags || []).includes(tagFilter));
+      if (ratingFilter > 0) list = list.filter(t => (t.rating || 0) >= ratingFilter);
 
       const tbody = document.getElementById('tradeBody');
       const empty = document.getElementById('tradeEmpty');
 
       renderSummary(list);
       renderAnalysis(list);
+      renderTagStats(list);
 
       if (list.length === 0) {
         tbody.innerHTML = '';
@@ -430,6 +525,8 @@
           <td>${sellPriceDisplay}</td>
           <td>${profitDisplay}</td>
           <td>${rateDisplay}</td>
+          <td style="font-size:0.75rem;">${(t.tags||[]).map(tg => `<span style="display:inline-block;padding:1px 6px;border-radius:8px;margin:1px;background:${TAG_COLORS[tg]||'#666'};color:#fff;">${tg}</span>`).join('') || '-'}</td>
+          <td style="font-size:0.82rem;">${(t.rating||0) > 0 ? '⭐'.repeat(t.rating) : '-'}</td>
           <td class="notes-cell" title="${t.notes || ''}">${t.notes || '-'}</td>
           <td class="actions-cell">
             <button class="edit" onclick="editTrade('${t.id}')">✏️</button>
@@ -715,6 +812,10 @@
       document.getElementById('tradeSellDate').value = '';
       document.getElementById('tradeProfitPreview').value = '待计算';
       document.getElementById('tradeProfitPreview').style.color = '';
+      selectedTags = [];
+      selectedRating = 0;
+      renderTagSelector();
+      renderRatingStars();
       openModal('tradeModal');
       setTimeout(() => document.getElementById('tradeStockName').focus(), 100);
     }
@@ -733,6 +834,10 @@
       document.getElementById('tradeSellDate').value = t.sellDate || '';
       document.getElementById('tradeSellPrice').value = t.sellPrice || '';
       document.getElementById('tradeNotes').value = t.notes || '';
+      selectedTags = [...(t.tags || [])];
+      selectedRating = t.rating || 0;
+      renderTagSelector();
+      renderRatingStars();
       previewProfit();
       openModal('tradeModal');
     }
@@ -759,6 +864,8 @@
         sellDate: sellDate || '',
         sellPrice: sellPrice ? parseFloat(sellPrice) : '',
         notes,
+        tags: [...selectedTags],
+        rating: selectedRating,
       };
 
       if (editingTradeId) {
@@ -777,6 +884,40 @@
       DB.deleteTrade(id);
       renderTrades();
       showToast('交易记录已删除');
+    }
+
+    // ===== 按标签统计 =====
+    function renderTagStats(list) {
+      const card = document.getElementById('tagStatsCard');
+      const closed = list.filter(t => t.sellPrice);
+      if (closed.length < 2) { card.style.display = 'none'; return; }
+
+      const tagStats = {};
+      closed.forEach(t => {
+        (t.tags || ['未标记']).forEach(tg => {
+          if (!tagStats[tg]) tagStats[tg] = { count: 0, profit: 0, wins: 0 };
+          tagStats[tg].count++;
+          tagStats[tg].profit += parseFloat(t.profit) || 0;
+          if (parseFloat(t.profit) > 0) tagStats[tg].wins++;
+        });
+      });
+
+      const tags = Object.entries(tagStats).sort((a, b) => b[1].profit - a[1].profit);
+      card.style.display = 'block';
+      card.innerHTML = `
+        <h4 style="font-size:0.9rem;margin-bottom:10px;color:var(--primary);">🏷️ 按标签统计</h4>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;">
+          ${tags.map(([tg, s]) => {
+            const winRate = s.count > 0 ? (s.wins / s.count * 100).toFixed(0) : 0;
+            const plCls = s.profit >= 0 ? 'var(--success)' : 'var(--danger)';
+            return `<div style="padding:10px;background:var(--bg);border-radius:var(--radius-sm);border-left:3px solid ${TAG_COLORS[tg]||'#666'};">
+              <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;">${tg}</div>
+              <div style="font-size:0.78rem;color:var(--text-light);">${s.count}笔 | 胜率${winRate}%</div>
+              <div style="font-size:0.9rem;font-weight:600;color:${plCls};">${s.profit>=0?'+':''}${s.profit.toFixed(0)}</div>
+            </div>`;
+          }).join('')}
+        </div>
+      `;
     }
 
     // ===== CSV 导入功能 =====
