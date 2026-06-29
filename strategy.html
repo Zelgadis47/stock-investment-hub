@@ -343,19 +343,28 @@
       showToast('策略已删除');
     }
 
-    // ===== 策略匹配股票 =====
+    // ===== 策略匹配股票（多因子量化筛选） =====
 
-    // API 调用（带缓存和超时）
-    async function fetchStockData(url, cacheKey, ttlMs = 300000) {
-      // 检查缓存
+    // 东方财富 API 字段说明
+    // f2:最新价 f3:涨跌幅 f4:涨跌额 f5:成交量 f6:成交额
+    // f8:换手率 f9:市盈率(动态) f10:量比 f12:代码 f14:名称
+    // f15:最高 f16:最低 f17:今开 f18:昨收
+    // f20:总市值 f21:流通市值 f23:市净率
+    // f37:股息率 f62:主力净流入(万元)
+
+    const CACHE_TTL = 180000; // 3分钟缓存
+
+    async function fetchStockData(cacheKey) {
       const cached = localStorage.getItem(cacheKey);
       if (cached) {
         const { data, ts } = JSON.parse(cached);
-        if (Date.now() - ts < ttlMs) return data;
+        if (Date.now() - ts < CACHE_TTL) return data;
       }
+      // 获取全市场A股数据（所有关键字段）
+      const fields = 'f2,f3,f4,f8,f9,f10,f12,f14,f20,f23,f37,f62';
+      const url = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=500&po=0&np=1&fltt=2&invt=2&fid=f3&fs=m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23&fields=${fields}&_=${Date.now()}`;
       try {
         const resp = await fetch(url);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const text = await resp.text();
         const json = JSON.parse(text);
         const data = json?.data?.diff || [];
@@ -364,148 +373,185 @@
       } catch(e) { return []; }
     }
 
-    // 格式化涨跌幅
-    function fmtPct(val) {
-      const n = parseFloat(val);
+    function fmtPct(v) {
+      const n = parseFloat(v);
       if (isNaN(n)) return '-';
       const cls = n > 0 ? 'up' : (n < 0 ? 'down' : '');
       return `<span class="${cls}">${n > 0 ? '+' : ''}${n.toFixed(2)}%</span>`;
+    }
+
+    function fmtNum(v, unit = '') {
+      const n = parseFloat(v);
+      if (isNaN(n)) return '-';
+      if (Math.abs(n) >= 1e8) return (n / 1e8).toFixed(2) + '亿' + unit;
+      if (Math.abs(n) >= 1e4) return (n / 1e4).toFixed(2) + '万' + unit;
+      return n.toFixed(1) + unit;
+    }
+
+    function fmtPE(v) { const n = parseFloat(v); return n > 0 ? n.toFixed(1) : '—'; }
+
+    // 多因子评分引擎
+    function scoreStock(stock, rules) {
+      let score = 0;
+      for (const rule of rules) {
+        const val = parseFloat(stock[rule.field]) || 0;
+        if (rule.condition(val)) score += rule.weight;
+      }
+      return score;
     }
 
     function matchStrategy(id) {
       const list = DB.getStrategies();
       const s = list.find(item => item.id === id);
       if (!s) return;
-
-      const name = s.name;
-      document.getElementById('matchTitle').textContent = name + ' — 匹配股票';
+      document.getElementById('matchTitle').textContent = s.name + ' — 匹配股票';
       document.getElementById('matchCondition').textContent = s.logic || '通用筛选';
       document.getElementById('matchLoading').style.display = 'block';
       document.getElementById('matchResults').style.display = 'none';
       openModal('matchModal');
-
-      doMatch(name, s.logic || '');
+      doMatch(s.name, s.logic || '');
     }
 
     async function doMatch(name, logic) {
-      const keywords = (name + logic).toLowerCase();
-      let field = 'f12,f14,f2,f3'; // code,name,price,percent
-      let sortField = 'f3'; // 默认按涨跌幅排序
-      let sortType = 0; // desc
-      let market = 'm:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23'; // 沪深A股
-      let condition = '';
-      let extraField = '';
-      let extraLabel = '';
-      let extraTransform = null;
-
-      // 根据策略分析匹配条件
-      if (keywords.includes('股息') || keywords.includes('红利')) {
-        // 高股息：筛选股息率 > 3%
-        field += ',f37'; // 股息率
-        sortField = 'f37';
-        extraLabel = '股息率';
-        extraTransform = v => (parseFloat(v) || 0).toFixed(2) + '%';
-        condition = '基于股息率排序，建议关注前20只';
-      } else if (keywords.includes('低估值') || keywords.includes('市盈率') || keywords.includes('pe')) {
-        // 低估值：按PE排序
-        field += ',f9'; // PE
-        sortField = 'f9';
-        sortType = 1; // asc
-        extraLabel = 'PE(TTM)';
-        extraTransform = v => parseFloat(v) > 0 ? parseFloat(v).toFixed(1) : '—';
-        condition = 'PE由低到高排列，仅显示盈利公司';
-      } else if (keywords.includes('roi') || keywords.includes('roe') || keywords.includes('净资产')) {
-        // 高ROE
-        field += ',f37,f9'; // dividend, PE
-        extraField = 'f37';
-        extraLabel = 'ROE参考';
-        condition = 'ROE数据有限，建议结合个股深度分析';
-      } else if (keywords.includes('突破') || keywords.includes('新高')) {
-        // 突破：找接近52周高点
-        sortField = 'f3';
-        extraLabel = '接近高点';
-        condition = '短期强势股，注意追高风险';
-      } else if (keywords.includes('趋势') || keywords.includes('均线') || keywords.includes('上升')) {
-        // 趋势跟踪
-        sortField = 'f8'; // 换手率
-        extraField = 'f8';
-        extraLabel = '换手率';
-        extraTransform = v => parseFloat(v).toFixed(2) + '%';
-        condition = '活跃的上升趋势股，换手率反映市场关注度';
-      } else if (keywords.includes('超预期') || keywords.includes('财报') || keywords.includes('营收')) {
-        // 业绩超预期 → 找近期强势股（市场已定价预期）
-        sortField = 'f3';
-        extraLabel = '市场表现';
-        condition = '近期强势股（市场已反映超预期），财报季建议结合公告验证';
-      } else if (keywords.includes('网格') || keywords.includes('etf')) {
-        // ETF
-        market = 'b:MK0021,b:MK0022,b:MK0023,b:MK0354'; // ETF市场
-        sortField = 'f8'; // 换手率
-        extraField = 'f8';
-        extraLabel = '换手率';
-        extraTransform = v => parseFloat(v).toFixed(2) + '%';
-        condition = '高流动性ETF，适合网格交易';
-      } else if (keywords.includes('板块') || keywords.includes('轮动')) {
-        sortField = 'f3';
-        extraLabel = '板块动向';
-        condition = '近期资金流入板块的龙头个股';
-      } else {
-        // 默认：市场热度
-        extraLabel = '涨跌幅';
-        extraTransform = v => (parseFloat(v) > 0 ? '+' : '') + parseFloat(v).toFixed(2) + '%';
-        condition = '默认筛选市场活跃个股';
-      }
-
-      const apiUrl = `https://push2.eastmoney.com/api/qt/clist/get?pn=1&pz=30&po=${sortType}&np=1&fltt=2&invt=2&fid=${sortField}&fs=${market}&fields=${field}&_=${Date.now()}`;
-
-      try {
-        const stocks = await fetchStockData(apiUrl, 'stock_cache_' + sortField, 120000);
-
-        document.getElementById('matchLoading').style.display = 'none';
-        document.getElementById('matchResults').style.display = 'block';
-
-        if (!stocks || stocks.length === 0) {
-          document.getElementById('matchTable').querySelector('tbody').innerHTML = '';
-          document.getElementById('matchEmpty').style.display = 'block';
-          return;
-        }
-
-        document.getElementById('matchEmpty').style.display = 'none';
-        const tbody = document.getElementById('matchTable').querySelector('tbody');
-
-        tbody.innerHTML = stocks.filter(s => {
-          // 过滤：PE为负的低估值策略
-          if (keywords.includes('低估值') && parseFloat(s.f9) <= 0) return false;
-          return true;
-        }).slice(0, 20).map(s => {
-          const code = s.f12 || '';
-          const name = s.f14 || '';
-          const price = parseFloat(s.f2).toFixed(2);
-          const pct = s.f3;
-          const marketTag = code.startsWith('6') ? 'sh' : 'sz';
-          const url = `https://quote.eastmoney.com/${marketTag}${code}.html`;
-
-          let extra = '';
-          if (extraTransform) {
-            const val = s[extraField || sortField];
-            if (val !== undefined) extra = extraTransform(val);
-          } else if (extraLabel === 'PE(TTM)') {
-            extra = extraTransform ? extraTransform(s.f9) : (parseFloat(s.f9) > 0 ? parseFloat(s.f9).toFixed(1) : '—');
-          } else {
-            extra = fmtPct(pct);
-          }
-
-          return `<tr style="cursor:pointer;" onclick="window.open('${url}','_blank')" title="点击打开东方财富详情">
-            <td><strong>${name}</strong></td>
-            <td style="font-size:0.8rem;color:var(--text-light);">${code}</td>
-            <td>${price}</td>
-            <td>${fmtPct(pct)}</td>
-            <td style="font-size:0.85rem;">${extra}</td>
-          </tr>`;
-        }).join('');
-      } catch (e) {
+      const stocks = await fetchStockData('full_stock_data');
+      if (!stocks.length) {
         document.getElementById('matchLoading').innerHTML = '<p style="color:var(--danger);">❌ 数据获取失败，请稍后重试</p>';
+        return;
       }
+
+      const kw = (name + logic).toLowerCase();
+      let rules, resultColumns;
+
+      // ===== 策略匹配规则定义 =====
+      if (kw.includes('超跌') || kw.includes('回调')) {
+        // 超跌反弹：跌幅大 + 资金流入 + 量能配合
+        resultColumns = ['名称','代码','现价','跌幅','主力净流入','量比','PE','换手率'];
+        rules = [
+          { field:'f3', condition: v => v < -5, weight: 20 - Math.abs(v) * 1.5, desc:'跌幅大' },
+          { field:'f62', condition: v => v > 500, weight: Math.min(v / 1000, 15), desc:'主力净流入' },
+          { field:'f10', condition: v => v > 0.7, weight: Math.min(v * 3, 10), desc:'量比活跃' },
+          { field:'f9', condition: v => v > 0 && v < 100, weight: 5, desc:'PE合理' },
+          { field:'f8', condition: v => v < 15, weight: 3, desc:'换手率适中' },
+        ];
+      } else if (kw.includes('股息') || kw.includes('红利')) {
+        resultColumns = ['名称','代码','现价','股息率','市值','主力净流入','PE'];
+        rules = [
+          { field:'f37', condition: v => v > 2, weight: v * 3, desc:'股息率高' },
+          { field:'f20', condition: v => v > 1e9, weight: 8, desc:'市值大' },
+          { field:'f9', condition: v => v > 0 && v < 20, weight: 5, desc:'低估值' },
+          { field:'f62', condition: v => v > -500, weight: 3, desc:'资金面不差' },
+        ];
+      } else if (kw.includes('低估值') || kw.includes('市盈率') || kw.includes('pe')) {
+        resultColumns = ['名称','代码','现价','PE','市值','主力净流入','股息率','涨跌幅'];
+        rules = [
+          { field:'f9', condition: v => v > 0 && v < 30, weight: 25 - v * 0.6, desc:'PE低' },
+          { field:'f20', condition: v => v > 5e9, weight: 8, desc:'市值大' },
+          { field:'f62', condition: v => v > -300, weight: 5, desc:'资金面' },
+          { field:'f37', condition: v => v > 1, weight: v * 2, desc:'有股息' },
+          { field:'f23', condition: v => v > 0 && v < 5, weight: 4, desc:'PB合理' },
+        ];
+      } else if (kw.includes('趋势') || kw.includes('均线') || kw.includes('上升')) {
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','换手率','PE'];
+        rules = [
+          { field:'f3', condition: v => v > 2, weight: v * 1.2, desc:'趋势向上' },
+          { field:'f62', condition: v => v > 1000, weight: Math.min(v / 800, 12), desc:'主力流入' },
+          { field:'f10', condition: v => v > 0.8, weight: Math.min(v * 4, 10), desc:'量能配合' },
+          { field:'f8', condition: v => v > 2 && v < 20, weight: 5, desc:'交投活跃' },
+          { field:'f9', condition: v => v > 0 && v < 80, weight: 3, desc:'估值不过高' },
+        ];
+      } else if (kw.includes('突破') || kw.includes('新高')) {
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市值','换手率'];
+        rules = [
+          { field:'f3', condition: v => v > 4, weight: v * 1.5, desc:'强势突破' },
+          { field:'f62', condition: v => v > 2000, weight: Math.min(v / 500, 15), desc:'主力大额流入' },
+          { field:'f10', condition: v => v > 1.0, weight: Math.min(v * 5, 12), desc:'放量突破' },
+          { field:'f8', condition: v => v > 3 && v < 25, weight: 5, desc:'换手充分' },
+          { field:'f20', condition: v => v > 3e9, weight: 3, desc:'非微盘股' },
+        ];
+      } else if (kw.includes('超预期') || kw.includes('财报') || kw.includes('营收') || kw.includes('业绩')) {
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','量比','市值','PE'];
+        rules = [
+          { field:'f3', condition: v => v > 3, weight: v * 1, desc:'市场认可' },
+          { field:'f62', condition: v => v > 800, weight: Math.min(v / 600, 12), desc:'主力净流入' },
+          { field:'f10', condition: v => v > 0.8, weight: Math.min(v * 3, 8), desc:'成交活跃' },
+          { field:'f20', condition: v => v > 2e9, weight: 5, desc:'有一定规模' },
+          { field:'f9', condition: v => v > 0 && v < 100, weight: 3, desc:'PE合理' },
+        ];
+      } else if (kw.includes('网格') || kw.includes('etf')) {
+        resultColumns = ['名称','代码','现价','涨跌幅','换手率','市值'];
+        rules = [
+          { field:'f8', condition: v => v > 1 && v < 30, weight: 10, desc:'流动性好' },
+          { field:'f3', condition: v => Math.abs(v) < 8, weight: 8 - Math.abs(v) * 0.3, desc:'波动适中' },
+        ];
+      } else {
+        // 通用：结合资金面 + 基本面
+        resultColumns = ['名称','代码','现价','涨跌幅','主力净流入','PE','市值','换手率'];
+        rules = [
+          { field:'f3', condition: v => true, weight: 5, desc:'关注度' },
+          { field:'f62', condition: v => v > 0, weight: Math.min(v / 500, 15), desc:'主力净流入' },
+          { field:'f9', condition: v => v > 0 && v < 80, weight: 8, desc:'PE合理' },
+          { field:'f20', condition: v => v > 1e9, weight: 5, desc:'有一定规模' },
+        ];
+      }
+
+      // 评分并排序
+      const scored = stocks
+        .map(s => ({ ...s, _score: scoreStock(s, rules) }))
+        .filter(s => s._score > 0)
+        .sort((a, b) => b._score - a._score)
+        .slice(0, 25);
+
+      // 渲染筛选条件说明
+      const condDesc = rules.map(r => r.desc).join(' + ');
+      document.getElementById('matchCondition').textContent = `${condDesc}（综合评分排序，共${scored.length}只）`;
+
+      // 渲染结果
+      document.getElementById('matchLoading').style.display = 'none';
+      document.getElementById('matchResults').style.display = 'block';
+
+      if (!scored.length) {
+        document.getElementById('matchTable').querySelector('tbody').innerHTML = '';
+        document.getElementById('matchEmpty').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('matchEmpty').style.display = 'none';
+
+      // 更新表头
+      const thead = document.getElementById('matchTable').querySelector('thead tr');
+      thead.innerHTML = resultColumns.map(c => `<th>${c}</th>`).join('') + '<th>评分</th>';
+
+      // 填充数据
+      const tbody = document.getElementById('matchTable').querySelector('tbody');
+      tbody.innerHTML = scored.map(s => {
+        const code = s.f12 || '';
+        const name = s.f14 || '';
+        const price = parseFloat(s.f2 || 0).toFixed(2);
+        const marketTag = code.startsWith('6') ? 'sh' : 'sz';
+        const url = `https://quote.eastmoney.com/${marketTag}${code}.html`;
+        const rating = '⭐'.repeat(Math.min(5, Math.round(s._score / 3)));
+
+        return `<tr style="cursor:pointer;" onclick="window.open('${url}','_blank')" title="点击打开东方财富详情">
+          ${resultColumns.map(col => {
+            if (col === '名称') return `<td><strong>${name}</strong></td>`;
+            if (col === '代码') return `<td style="font-size:0.8rem;color:var(--text-light);">${code}</td>`;
+            if (col === '现价') return `<td>${price}</td>`;
+            if (col === '涨跌幅' || col === '跌幅') return `<td>${fmtPct(s.f3)}</td>`;
+            if (col === '主力净流入') {
+              const v = parseFloat(s.f62 || 0);
+              const cls = v > 0 ? 'up' : (v < 0 ? 'down' : '');
+              return `<td><span class="${cls}">${fmtNum(s.f62)}</span></td>`;
+            }
+            if (col === '量比') return `<td>${(parseFloat(s.f10) || 0).toFixed(2)}</td>`;
+            if (col === 'PE') return `<td>${fmtPE(s.f9)}</td>`;
+            if (col === '换手率') return `<td>${(parseFloat(s.f8) || 0).toFixed(2)}%</td>`;
+            if (col === '市值') return `<td style="font-size:0.8rem;">${fmtNum(s.f20)}</td>`;
+            if (col === '股息率') return `<td>${(parseFloat(s.f37) || 0).toFixed(2)}%</td>`;
+            return '<td>-</td>';
+          }).join('')}
+          <td style="font-size:0.82rem;color:var(--warning);">${rating}</td>
+        </tr>`;
+      }).join('');
     }
 
     // ---- 初始化 ----
