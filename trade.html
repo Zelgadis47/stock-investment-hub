@@ -720,49 +720,8 @@
       showToast('交易记录已删除');
     }
 
-    // ---- 初始化示例数据（增加更多交易记录以便分析） ----
-    function initSampleTradeData() {
-      if (DB.getTrades().length > 1) return; // 已有数据则不覆盖
-      DB.addTrade({
-        stockName: '中联重科', stockCode: '000157',
-        buyDate: '2025-11-15', buyPrice: 7.64, shares: 1000,
-        sellDate: '', sellPrice: '',
-        notes: '工程机械龙头，低估值，计划长期持有',
-      });
-      DB.addTrade({
-        stockName: '贵州茅台', stockCode: '600519',
-        buyDate: '2025-09-10', buyPrice: 1850, shares: 100,
-        sellDate: '2025-12-05', sellPrice: 1920,
-        notes: '国庆消费旺季预期，短线获利了结',
-      });
-      DB.addTrade({
-        stockName: '宁德时代', stockCode: '300750',
-        buyDate: '2025-10-20', buyPrice: 245, shares: 200,
-        sellDate: '2025-11-28', sellPrice: 232,
-        notes: '锂电价格战超预期，止损出局',
-      });
-      DB.addTrade({
-        stockName: '科大讯飞', stockCode: '002230',
-        buyDate: '2025-11-01', buyPrice: 48.5, shares: 500,
-        sellDate: '2026-01-10', sellPrice: 55.2,
-        notes: 'AI概念行情启动，顺势加仓后获利',
-      });
-      DB.addTrade({
-        stockName: '腾讯控股', stockCode: '00700',
-        buyDate: '2025-08-15', buyPrice: 380, shares: 200,
-        sellDate: '2025-10-08', sellPrice: 365,
-        notes: '反弹回补缺口失败，小亏止损',
-      });
-      DB.addTrade({
-        stockName: '比亚迪', stockCode: '002594',
-        buyDate: '2025-07-01', buyPrice: 268, shares: 150,
-        sellDate: '2025-09-15', sellPrice: 310,
-        notes: '新能源车销量超预期，中线持有获利',
-      });
-    }
-
     // ---- 初始化 ----
-    initSampleTradeData();
+    DB.initSampleData();
     renderTrades();
   </script>
 </body>
